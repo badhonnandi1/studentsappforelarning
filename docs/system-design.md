@@ -1,6 +1,6 @@
 # System design: Bangladesh practice + AI tutor platform
 
-**Version:** 1.0 · 2026-11-26 · **Status:** Proposed, for engineering review · **Requirements:** [`features.md`](../features.md) v1.0
+**Version:** 1.0 · 2026-11-26 · **Status:** Superseded by [`system-design-v2.md`](system-design-v2.md); kept for history · **Requirements:** [`features.md`](../features.md) v1.0
 
 ## Context
 
