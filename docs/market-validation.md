@@ -12,7 +12,7 @@ This version replaces the first report of the same day, which had five errors: t
 
 **One gap was found: proof.** No commercial app seen in this research publishes how accurate its marking or answers are, or advertises textbook-page citations. The top complaints include wrong answer keys, poor AI explanations and exams that fail to submit.
 
-**It can stand out** only as the app whose marks and answers can be trusted, measured and shown, on a narrow first scope (§7). Nothing here shows yet that students will pay for that.
+**It can stand out** as the product where a teacher checks AI-drafted written marks and the accuracy is published ([product strategy](product-strategy.md)). Nothing here shows yet that teachers or students will pay for that.
 
 ## 2. Fit with the education system
 
@@ -32,9 +32,9 @@ From SSC 2027, NCTB's published split (*official*, [signed 4 Feb 2025](https://d
 - Written answers carry most of the theory marks. At P0 the design lets students only self-mark them.
 - **Short questions are a separate section.** Blueprints must support it; the design's type list already includes short answer.
 - That SSC 2028 keeps this split is our inference.
-- The 1+2+3+4 split of CQ parts (ক, খ, গ, ঘ) appears only in unofficial sources, and no official marking rubric was found. Rubrics need subject teachers.
+- The 2017 higher-secondary structure gives CQ parts ক, খ, গ, ঘ 1, 2, 3 and 4 marks, with exceptions: higher mathematics and accounting used three parts (*official*, [Dhaka board](https://dhakaeducationboard.gov.bd/data/20160915115026294635.pdf)). For SSC 2027 the split was seen only in unofficial sources. No official marking scheme was found, so rubrics need subject teachers.
 - Classes 6 to 8 in 2025: CQ 50, short 20, MCQ 30 for mathematics, science, BGS and religion (*official*, [NCTB](https://drive.egovcloud.gov.bd/index.php/s/6gliHfrMN7doHHa)).
-- The HSC 2027 and 2028 split was not verified.
+- HSC 2028 sits the full syllabus with full time and marks (*official*, [NCTB letter, 6 Oct 2026](https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-nctb/2026/9/1a22193a-0b45-4637-80d7-9efcda11ee8c.pdf)). The latest split read is the 2017 one: science and ICT 50 CQ, 25 MCQ, 25 practical; many humanities and business subjects 70 CQ, 30 MCQ. Applying it to 2027 or 2028 is our inference.
 
 ### 2.2 Calendar and cohort
 
@@ -53,7 +53,7 @@ From SSC 2027, NCTB's published split (*official*, [signed 4 Feb 2025](https://d
 | 2027 books bring revised history and AI content in secondary ICT ([Prothom Alo](https://en.prothomalo.com/bangladesh/s80v8ysma3)) | Textbook ingestion must be versioned by year. |
 | Unified question papers: SSC and Dakhil 2027 share papers in 13 subjects ([Ittefaq](https://www.ittefaq.com.bd/809850/)) | A national mock gets closer to the real exam. |
 | Draft Education Act (Feb 2026) would end commercial coaching and guidebooks within 3 to 5 years; not passed ([bdnews24](https://bangla.bdnews24.com/bangladesh/d4b402896e3e)) | Watch it. The draft's definitions decide whether an app counts. |
-| NCTB halted printing of note and guide books until 31 Dec 2026 ([TBS](https://www.tbsnews.net/bangladesh/education/nctb-suspends-printing-binding-all-notes-guidebooks-until-31-dec-1610806)) | A printing order, not about apps. No licence to reuse textbook text was found; free download is not a licence (D1). |
+| NCTB halted printing of note and guide books until 31 Dec 2026 ([TBS](https://www.tbsnews.net/bangladesh/education/nctb-suspends-printing-binding-all-notes-guidebooks-until-31-dec-1610806)) | A printing order, not about apps. The Board holds copyright in its textbooks (*official*, [NCTB Act 2018 s.16(2)](http://bdlaws.minlaw.gov.bd/act-print-1275.html)); the [Copyright Act 2023](https://bdlaws.minlaw.gov.bd/act-print-1452.html) allows exceptions only on conditions set in rules, and none made under it were found. No NCTB licensing process was found (D1). Some higher-secondary books come from other publishers. |
 | Mobile phones banned in secondary classrooms (education directorate order, [TBS](https://www.tbsnews.net/bangladesh/education/mobile-phone-use-banned-classrooms-secondary-level-educational-institutions), 18 Nov 2026) | The app is for home use. Do not plan on in-class use. |
 | No free government AI learning platform for school students was found | – |
 
@@ -94,6 +94,20 @@ Also seen: Medhabir Supernova (1M+, 3.22), brritto (100K+, 4.44), Satt Academy (
 
 Oddhoyon's site shows no accuracy figure and no textbook-page citation.
 
+### Teacher and coaching side
+
+| Product | What it covers |
+|---|---|
+| [EvalBee](https://evalbee.com/), [ScanScore](https://play.google.com/store/apps/details?id=com.desync.scanscore) | Phone scanning of multiple-choice sheets |
+| [Onusiloni](https://onusiloni.com/en) | Question papers, online exams, sheet scanning, result SMS |
+| [Course37](https://course37.com/) | Coaching fees, attendance, sheet scanning, guardian SMS, CQ question bank |
+
+- No commercial Bangladeshi product marking written answers for teachers was found. Utsaho links a teacher dashboard whose features could not be seen.
+- Board examiners get 300 scripts in 15 days as standard, and some took 450 to 900 ([Naya Diganta](https://dailynayadiganta.com/printed-edition/lRSRQPZ8wIpE), search-level reading). Everyday school marking hours were not found.
+- 6,587 registered coaching centres with 917,000 students and 61,812 teachers (survey figures via [press](https://bangladeshpost.net/posts/bangladesh-s-coaching-centre-policy-25-years-zero-closures-168414)).
+- 19,211 schools with 7.44 million students; 9,296 madrasahs (Dakhil to Kamil) with 2.84 million ([Prothom Alo](https://en.prothomalo.com/youth/education/f8t5oc4rxz), citing the education statistics bureau).
+- A 2012 policy bars teachers from coaching their own students, and the education minister repeated such a ban ([Dhaka Tribune](https://www.dhakatribune.com/bangladesh/education/425842/milon-no-teacher-to-be-allowed-in-coaching)). Sales to teachers must fit it.
+
 **Business signals** (*press*, [Daily Star](https://www.thedailystar.net/business/news/edtech-startups-look-beyond-user-growth-4311476)): 10 Minute School reports over 50,000 paying users and revenue above Tk 50 crore; Chorcha over 100,000 premium buyers and Tk 2.5 crore. Paid conversion is described as hard.
 
 **Household spend:** Tk 27,340 a year per secondary student in 2022, Tk 35,662 urban (CAMPE, [TBS](https://www.tbsnews.net/bangladesh/education/cost-education-jumps-51-secondary-25-primary-students-study-819286)). Most of it is not available to an app.
@@ -128,18 +142,23 @@ Themes from recent Play reviews; counts are approximate and the sample is small.
 
 ### Can AI mark Bangla handwriting well enough?
 
-**Unknown. This is the largest technical risk in the recommendation.**
+**Unknown. This is the largest technical risk in the strategy.**
 
 - On typed or English-language scripts, recent preprints report AI marking near or above agreement between human examiners ([arXiv 2606.24973](https://arxiv.org/abs/2606.24973), a vendor study without photos; [arXiv 2609.14284](https://arxiv.org/abs/2609.14284), undergraduate handwriting, seen in search results only).
 - For Bangla handwriting, one benchmark reports a character error rate of 19.39% for Gemini 2.5 Flash against 6.19% for a specialised model ([arXiv 2509.18081](https://arxiv.org/pdf/2509.18081)). No figure for Claude was found.
+- The Bangla benchmark figure is its easier test set; on the harder one the general model scored 37.42% against 8.68%.
+- Reading models tend to "correct" student mistakes while transcribing, seen in English mathematics ([arXiv 2604.22774](https://arxiv.org/html/2604.22774v1), preprint).
+- On 20 handwritten Arabic-English papers, one Claude model ran about 0.7 marks high out of 20, consistently ([arXiv 2611.13217](https://arxiv.org/pdf/2611.13217), preprint, one human marker).
+- Student text can steer a marking model; defences reduced but did not remove this ([arXiv 2606.03090](https://arxiv.org/html/2606.03090), preprint, typed text).
+- England's regulator treats AI as sole marker as non-compliant ([Ofqual](https://assets.publishing.service.gov.uk/media/696503ebe8b93f59c3aecce6/Principles_of_AI_use_in_marking_.pdf)).
 - No study from photo to mark in Bangla was found, and no measure of how closely two Bangladeshi teachers agree.
 - Human marking also moves: SSC 2026 re-scrutiny changed 56,259 marks from 402,052 applications, 4,585 of them fail to pass ([Prothom Alo](https://en.prothomalo.com/youth/education/my7djgahco)).
 
 ## 6. Business, legal and platform constraints
 
 - **Free tier cost.** Design §8.6 prices a message at $0.0027 and a photo solve at $0.022. A free user who uses all 10 messages and 2 photo solves costs about $0.071 a day, about Tk 260 a month at Tk 122 per dollar. That is more than Oddhoyon's top plan (Tk 249). Reduce the free photo quota, or serve verified and cached answers first.
-- **Google Play** (*official*): education subscriptions sold in the app must use Play Billing, and the app may not steer users to other payment methods outside Google's enrolled programmes ([policy](https://support.google.com/googleplay/android-developer/answer/10281818), [explanation](https://support.google.com/googleplay/android-developer/answer/9858738)). Auto-renewing subscriptions are charged 15% in other markets ([fees](https://support.google.com/googleplay/android-developer/answer/112622)). Bangladesh is not named for alternative billing.
-- **bKash** (*official*): the [Execute Payment](https://developer.bka.sh/docs/execute-payment-4) step completes a payment; the payment ID is valid 24 hours and allows one execute attempt. [Auto-debit terms](https://www.bkash.com/page/subscription-payment-terms-conditions) exist; who may use it was not found.
+- **Google Play** (*official*): education subscriptions sold in the app must use Play Billing, and the app may not steer users to other payment methods outside Google's enrolled programmes ([policy](https://support.google.com/googleplay/android-developer/answer/10281818), [explanation](https://support.google.com/googleplay/android-developer/answer/9858738)). Auto-renewing subscriptions are charged 15% in other markets ([fees](https://support.google.com/googleplay/android-developer/answer/112622)). Google lists 30 September 2027 for new fees and a billing choice in the rest of the world ([announcement](https://support.google.com/googleplay/android-developer/answer/16954621)); Bangladesh is not named, and that fee is not announced.
+- **bKash** (*official*): the [Execute Payment](https://developer.bka.sh/docs/execute-payment-4) step completes a payment; the payment ID is valid 24 hours and allows one execute attempt. [Payment notifications](https://developer.bka.sh/page/instant-payment-notification.md) are sent for successful payments, and a recurring payment product exists ([overview](https://developer.bka.sh/docs/product-overview)); who may use it and the fees were not found.
 - **Personal Data Protection Act 2026** (*official*, [Act 63, 10 April 2026](https://bdlaws.minlaw.gov.bd/act-print-1692.html); our reading, not legal advice):
   - A child is anyone under 18; processing needs a guardian's consent (s.9). No regulation setting the method was found.
   - No ban on profiling or tracking children was found in the Act. The 2025 ordinance had one and it was dropped ([TBS](https://www.tbsnews.net/features/panorama/why-cant-bangladesh-hold-meta-accountable-harming-children-1532401)).
@@ -149,37 +168,19 @@ Themes from recent Play reviews; counts are approximate and the sample is small.
 - **AI provider rules** (*official*, [Anthropic guidance for services used by minors](https://support.claude.com/en/articles/9307344), [usage policy](https://www.anthropic.com/legal/aup)): age checks, moderation and filtering, monitoring and reporting, safety guidance for minors, the supplied child-safety prompt, a public compliance statement and AI disclosure. Grading that decides admission or certification is high-risk and needs qualified human review. Our reading is that practice marking falls outside that. The API is offered in Bangladesh.
 - **Content.** How much of the question bank is verified is unknown; this decides both quality and the date.
 - **Distribution.** The documents read for this report give no plan for how students find the app against funded brands.
-- **Scope.** 87 P0 requirements aim at parity with established players on every front at once.
+- **Scope.** 93 P0 requirements aim at parity with established players on every front at once.
 
 ## 7. Recommendation
 
-**Position:** "Marks you can check: how close we are to real teachers, and the textbook reason for every lost mark." One cohort (SSC 2028), two or three subjects.
-
-1. **Run the accuracy test first.** Only if it passes, move CQ photo marking (AI-07, AI-07a, AI-07b) to P0. Until then priorities stay as they are (decision D9 in the design).
-2. Keep: verified bank for the chosen subjects, Mistake Notebook, citations, reliable exam submit, a simple streak.
-3. State plain promises: no sales calls, disputed marks seen by a teacher, accuracy published per subject.
-4. Defer: admission and job tracks, 200,000-student exams, national leaderboards, Classes 6 to 8.
-5. Price against Tk 49 to 249 a month, after fixing the free-tier cost.
-
-**Tests before building** (about 4 weeks, no app needed). Thresholds are proposals.
-
-| Test | Pass |
-|---|---|
-| 200 real handwritten CQ answers, marked by AI and by two teachers | AI agrees with each teacher about as well as they agree with each other (design gate: quadratic weighted kappa 0.8 or higher) |
-| The same set through Oddhoyon and Utsaho, where their terms allow | Ours is clearly closer to the teachers |
-| 30 students and 10 teachers interviewed; marking checked by hand and offered over chat | Most return for a second week; some pay |
-| The same 50 questions put to Chorcha, Shikho, ChatGPT and our prompt | Ours is clearly better on correctness and citation |
-| Legal opinion on D1 (textbooks) and D4 (minors) | Written answer |
-
-Collecting answers from minors needs guardian consent. If the accuracy test fails, the remaining difference (verified, cited answers) is much weaker; reconsider before funding a 10-person build.
+Build teacher-checked written marking with published accuracy, for SSC 2028 in two subjects, and test accuracy and teacher demand before building. Scope, method, gates and risks are in the [product strategy](product-strategy.md).
 
 ## 8. Not verified
 
 - Anything inside a competitor app: marking quality, working features, full prices.
-- That no competitor anywhere publishes accuracy; only listings and sites we read.
-- Official HSC 2027 and 2028 mark split, SSC 2028 split and exam month, CQ part weights, marking rubric.
-- NCTB textbook reuse terms.
-- bKash webhooks, auto-debit eligibility, merchant fees and onboarding time.
-- Date from which Google offers a billing choice in Bangladesh (search results suggest by 30 September 2027).
-- The data law's later amendments and rules; get a lawyer's reading.
-- Current tutoring and guidebook spend; willingness to pay.
+- That no competitor anywhere publishes accuracy or sells written marking to teachers; only what searches, listings and sites showed.
+- SSC 2028 split and exam month; any 2027 or 2028 higher-secondary split notice; official marking scheme.
+- NCTB licensing process, rights in past board papers, enforcement against apps.
+- bKash recurring eligibility and merchant fees.
+- Google Play fee for Bangladesh after the 2027 change.
+- Any rule under the data law setting how guardian consent is collected; get a lawyer's reading.
+- Current tutoring spend; willingness of teachers, students or parents to pay.

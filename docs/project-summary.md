@@ -7,6 +7,7 @@
 - [`system-design-v2.md`](system-design-v2.md): the design the team builds from.
 - [`architecture-review.md`](architecture-review.md): the independent review that shaped it.
 - [`features.md`](../features.md): the requirements.
+- [`product-strategy.md`](product-strategy.md): how the product stands out, and the tests that must pass first.
 - [`market-validation.md`](market-validation.md): education-system fit, competitors and the open question of what makes the app stand out.
 
 Figures marked *est.* are planning estimates, not measurements.
@@ -15,11 +16,14 @@ Figures marked *est.* are planning estimates, not measurements.
 
 ## 1. What we are building
 
-A Duolingo-style study app for Bangladesh. Its users are:
+A study app for Bangladesh whose difference is **teacher-checked marks for handwritten creative questions, with published accuracy**, on top of daily Duolingo-style practice. Its users are:
 
 - Class 6–12 students
 - university admission candidates
 - government and bank job candidates
+- teachers who check their batch's written answers
+
+The first release targets SSC 2028 and their teachers, in physics and one humanities subject.
 
 A student can:
 
@@ -30,12 +34,12 @@ A student can:
 
 Students preparing for an exam can go straight to a chapter, a past paper or a scheduled national mock exam.
 
-**Scope.** 177 requirements across 17 modules:
+**Scope.** 180 requirements across 17 modules:
 
 | Priority | Count | Meaning |
 |---|---:|---|
-| P0 | 87 | Needed for launch |
-| P1 | 70 | Soon after launch |
+| P0 | 93 | Needed for launch |
+| P1 | 67 | Soon after launch |
 | P2 | 20 | Later |
 
 Every requirement has an owner and a place in the design. The two pillars, the **AI tutor** and **gamification**, are both part of the launch.
@@ -93,6 +97,7 @@ flowchart LR
 | Week | Milestone |
 |---|---|
 | 2 | Device test of the app on a 2 GB Android phone; AI model and OCR shortlist chosen |
+| 4 | Written-marking accuracy test and teacher interviews decide whether marking stays in the launch |
 | **6** | **First complete learning session** on a test server, including the AI tutor, XP and streak |
 | 8 | Exam answer path tested with 20,000 simulated students and injected failures |
 | 10 | Exam alpha; first full AI tutor evaluation |
@@ -138,7 +143,7 @@ If building starts the week of 30 November 2026, week 16 falls during SSC 2027 (
 | Exam correctness at national scale | Fault-injection tests at 20,000, then staged rehearsals before larger exams | Week 8 |
 | Team capacity in backend, AI, platform and QA | Check progress against plan at week 4; add people or move the launch date | Week 4 |
 | Google Play requires its own billing for subscriptions sold in the Android app (15% fee) | Sell by bKash and gateways on the web; decide on in-app Play Billing; apply for gateway accounts in week 1 | Week 6 |
-| Established apps already offer the planned features, including AI marking of written answers | Test our marking against real teachers before building; compete on measured, visible accuracy | Week 4 |
+| Established apps already offer the planned features, including AI marking of written answers | Teacher-checked written marking with published accuracy; test it against two teachers before building | Week 4 |
 
 ## 8. Decisions still open
 
@@ -154,12 +159,13 @@ Building starts on a sensible default for each. A different answer changes only 
 | D6 | Gamification fine print (late answers, corrections, minors on leaderboards) | The rules in design §5 | Week 3 |
 | D7 | When late exam answers are accepted and when results publish | Late answers accepted for 10 minutes; provisional score within 5 s; results 15 minutes after the end or later | Week 2 |
 | D8 | Rights to questions scanned from books and past papers | Unknown rights cannot be published | Week 4 |
-| D9 | Should AI marking of handwritten written answers be in the launch? | No, until an accuracy test against two teachers passes | Week 4 |
+| D9 | Is teacher-checked marking of handwritten answers the launch difference? | Yes, teacher-checked, per subject, only after the accuracy test passes | Week 4 |
 
 ## 9. How progress will be judged
 
 **Launch requires every P0 requirement to be demonstrated, plus measured passes on:**
 
+- **Written marking:** each released subject agrees with teachers nearly as well as teachers agree with each other, on at least 400 double-marked answers.
 - **AI tutor:** at least 90% correct explanations; every citation resolves to a real source; zero unsafe answers in safety tests.
 - **Exams:** no confirmed answer lost under injected failures; provisional score within 5 seconds.
 - **Phones:** under 30 MB download; under 300 MB memory during a 60-minute exam; answers recovered after the app is killed.

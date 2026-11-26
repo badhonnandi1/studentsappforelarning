@@ -4,7 +4,7 @@
 
 ## Context
 
-`features.md` lists 177 requirements in 17 modules (87 P0, 70 P1, 20 P2). This is a greenfield design. It is written for the engineering team making its first database, API, mobile and deployment decisions. P0 defines launch acceptance; every P1 and P2 feature has an owner, dependencies and a place in the architecture (§8.4, §9).
+`features.md` lists 180 requirements in 17 modules (93 P0, 67 P1, 20 P2). The product position behind P0 is in [`product-strategy.md`](product-strategy.md): teacher-checked marks for handwritten creative questions (§4.10). This is a greenfield design. It is written for the engineering team making its first database, API, mobile and deployment decisions. P0 defines launch acceptance; every P1 and P2 feature has an owner, dependencies and a place in the architecture (§8.4, §9).
 
 Three things shape the design:
 
@@ -61,7 +61,7 @@ Option **S12** (exam answers written straight to DynamoDB) is not adopted. It is
 |---|---|
 | Team | 10 engineers: 3 backend, 2 web, 2 Android, 1 AI/ML, 1 platform/SRE, 1 QA. **Recommended additions** (review §4.1): one client engineer moves to backend from week 8; one contracted OCR and evaluation engineer; a second QA engineer from week 12. |
 | Content team | Authors and reviewers, sized in §8.1: about 7 full-time reviewers for the pilot track if the bank is unverified, 1 if it is already verified. |
-| Teacher time for AI evaluation | 22–38 teacher-weeks before launch (§4.8). |
+| Teacher time for AI evaluation | 22–38 teacher-weeks before launch (§4.8), plus the written-marking test and reviews (§4.10), not yet estimated. |
 | Timeline | **[Decision]** P0 launch at week 28; week 24 only if the staffing additions are in place by week 6. A free pilot from week 16. |
 | Pilot traffic | 10,000 monthly users, 3,000 daily, 300 concurrent at peak. |
 | Year-1 traffic | 500,000 registered, 60,000 daily, 6,000 concurrent outside exams. |
@@ -614,7 +614,7 @@ Sent from the question screen after Rafi's wrong answer.
 |---|---|
 | Explain actions with a verified key; simple recall; translation | Cheap |
 | Free-form questions needing reasoning; all maths solving; photo solve | Strong |
-| Failed verification on strong; written grading (P1) | Top |
+| Failed verification on strong; written marking drafts (§4.10) | Top |
 | Embeddings | Self-hosted `bge-m3` on CPU; no reranker at P0 |
 | All model tiers | One provider at P0 (C6) |
 
@@ -640,12 +640,36 @@ Targets are **[Rule]** proposals and block release.
 | Feature | Reuses | Adds |
 |---|---|---|
 | Socratic and direct modes, mode lock (AI-06) | Pipeline and context | A mode field on the thread; a lock set by a parent (PAR-03) or teacher |
-| Written grading (AI-07, AI-07a, AI-07b) | Photo OCR, `cq_subparts` and `rubric_points`, top tier | `gradings` with a score per rubric point, missing points, model answer and rewrite advice. Teacher override always wins. Launch gate: agreement with human examiners (quadratic weighted kappa 0.8 or higher). Photos are checked for readability before marking. Competitors already claim this feature, so D9 decides whether it moves to P0 after an accuracy test. |
+| BCS written and English writing grading (AI-07a, later part) | The §4.10 pipeline | New rubric types; each subject passes the §4.10 gate before release |
 | Quiz generator (AI-08) | Retrieval and generation | Items stored in `ai_items`, never in `questions`, shown with an "AI" label. They earn completion XP only, never affect mastery or leaderboards, and reach the bank only through the CMS workflow. |
 | Summariser (AI-09) | Retrieval over one chapter, citations | Stored per chapter and syllabus version; reviewed once, served to all |
 | Study coach (AI-10) | Mastery map, exam date, planner | Writes plan items into PLAN-03. The plan is data the student can edit, not a chat reply. |
 | Mistake diagnosis (AI-11) | Attempt history, distractor statistics | Misconception clusters that create a targeted practice set |
 | Voice (AI-12), spoken English (AI-13), viva simulator (AI-14) | The whole text pipeline | Speech-to-text in, text-to-speech out. Each needs its own Bangla speech eval before launch. |
+
+### 4.10 Teacher-checked written marking (AI-07 to AI-07d, INST-02a)
+
+This is the launch differentiator ([strategy](product-strategy.md)). It ships per subject, and only after that subject passes the accuracy gate.
+
+| Step | Design |
+|---|---|
+| Batch (INST-02a) | An operations user approves a teacher account. The teacher creates a batch and a join code. A student joins by code; an under-18 student needs the guardian consent of §7.5 first. |
+| Task | A written task points to CQ question versions with `rubric_points` written by a subject teacher. No official marking scheme was found. |
+| Capture | Pages are photographed in the app, checked for blur, rotation and crop on the device, and uploaded per page, resumable, to private storage. |
+| Draft | A job reads the answer (image or word-for-word transcript, whichever wins the test), marks each part against its rubric, and quotes the answer text behind each mark. Part count and marks come from `cq_subparts`. Student writing is passed as data; instruction-like text is flagged. |
+| Triage | Repeat runs. Disagreement, unreadable text, flags and boundary marks go to the top of the teacher queue. |
+| Review (AI-07c) | The teacher sees photo, draft and evidence, then confirms or changes each part. The teacher's mark is final and stored as a new row; drafts are never overwritten. |
+| Student view | Marks are labelled "teacher checked" or, where the subject passes the higher gate, "practice estimate". Written answers earn attempt XP only. Only teacher-checked marks count toward mastery, and no written marks enter merit lists. |
+| Accuracy (AI-07d) | `accuracy_reports(subject, part, model, prompt_version, sample_size, metrics, interval, measured_on)` from the double-marked test set, shown in the app. A model or prompt change needs a new report before release. |
+| Failure | If drafting fails or times out, the answer enters the teacher queue unmarked. |
+
+**Data.** `batches`, `batch_members`, `written_tasks`, `submissions`, `submission_pages`, `gradings(submission_id, source: ai_draft or teacher, model, prompt_version)`, `grading_parts(grading_id, rubric_point_id, marks, evidence, flags)`. A batch is a tenant for row-level security (§7.3).
+
+**Access.** A teacher reads only the submissions of their own batches. A student reads only their own. Operations access is audited. Leaving a batch stops further access to new work. No direct messages between teacher and student in this release.
+
+**Gate.** Per subject, on at least 400 double-marked answers: QWK at least 0.70, no more than 0.10 below teacher-to-teacher agreement, and bias at most 0.15 standard deviations for teacher-reviewed drafts; also QWK at least 0.8 for practice estimates. Definitions and caveats are in the strategy, §5.
+
+**Cost [Assumption].** About US$0.058 per answer per run on the top model (4,500 tokens in, 2,000 out), so written marking needs its own quota and price (D2). The routing ceiling in §4.6 does not apply to this job.
 
 ---
 
@@ -958,7 +982,7 @@ sequenceDiagram
 Other P0 commerce points:
 
 - **Gateways (PAY-03).** bKash directly, plus one aggregator (SSLCommerz or aamarPay) for Nagad, Rocket, Upay and cards. All sit behind one provider interface with the same verify-then-capture rule. Google Play Billing uses server-side purchase-token verification into the same capture transaction. Google requires Play Billing for education subscriptions sold in the app, and forbids steering users to other payment methods outside its enrolled programmes ([policy](https://support.google.com/googleplay/android-developer/answer/10281818)); Bangladesh is not named for alternative billing. So the Android app sells through Play Billing or sells nothing in the app, and wallets are used on the web. D2 settles which; payment screens are built for the web first.
-- **bKash flow.** [Execute Payment](https://developer.bka.sh/docs/execute-payment-4) completes the payment; the payment ID is valid for 24 hours and allows one execute attempt, so a timeout is resolved by a status query, never by executing again. **[Needs evidence]** Webhook availability, auto-debit eligibility and merchant fees.
+- **bKash flow.** [Execute Payment](https://developer.bka.sh/docs/execute-payment-4) completes the payment; the payment ID is valid for 24 hours and allows one execute attempt, so a timeout is resolved by a status query, never by executing again. [Instant payment notifications](https://developer.bka.sh/page/instant-payment-notification.md) arrive through Amazon SNS: confirm the subscription, verify the signature, and note they cover successful payments only, so status queries stay necessary. bKash sets up the listener address during onboarding. A recurring payment product exists. **[Needs evidence]** Recurring eligibility and merchant fees.
 - **VAT invoices [Needs evidence].** Check with an accountant whether receipts must be VAT (Mushak) invoices before launch.
 - **Coupons, referrals, receipts (PAY-04).** Coupons are validated when the order is created and redeemed once per user by a unique constraint. Referral credits are a ledger. A worker produces the PDF invoice and SMS receipt.
 - **Manual grants (OPS-01).** Admin grants call the same entitlement interface with source `admin` and are audited.
@@ -1008,7 +1032,7 @@ Permissions and recovery:
 | GAM-03 (P0) needs a friends board; GAM-09 friends is P2. | P0 ships a minimal mutual friend link (§5.4). |
 | EXAM-06 and GAM-03 (P0) need institution scope; INST and AUTH-09 are P1. | P0 uses the institution chosen on the profile from a reference list, labelled "self-reported" on boards and merit lists (C15). Verified rosters replace it in P1. |
 | EXAM-02 (P0) lists institution and batch exams; INST-04 is P1. | P0 supports audience-restricted exams set up by ops. Self-service scheduling is P1. |
-| QB-01a (P0) includes written questions; grading (AI-07, EXAM-10) is P1. | P0 written answers are self-marked against the rubric and excluded from merit lists. |
+| QB-01a (P0) includes written questions; exam upload grading (EXAM-10) is P1, while AI-07 is P0. | Written answers get teacher-checked marks inside batch tasks (§4.10). Elsewhere they are self-marked or, where the gate allows, a practice estimate. Both stay out of merit lists. |
 | NFR-02 wants results in 5 s; EXAM-04a sets a result publish time. | By default live exams show a provisional score without rank within 5 s; the merit list is deferred, which NFR-02 allows (§6.4). An organiser who hides results records an explicit exception. |
 | NFR-01 asks for 200,000 concurrent candidates. | The design supports 200,000. **[Decision]** Launch exams are capped at 20,000, and the cap rises after staged rehearsals (C17). |
 | NFR-04 asks for stemming. | **[Decision]** P0 search uses normalisation, trigram and embeddings; a suffix stripper is added if the search gate fails (C18). |
@@ -1038,7 +1062,7 @@ Permissions and recovery:
 | B2. Content operations (C21) | Bank inventory, timing study, review and blind verification, reviewer hiring and training | Week 1 | Head of content; a spreadsheet until the CMS arrives in week 8 |
 | C. Learning | PRAC, ANL projections, session APIs | Week 3 | B (published questions), A (events) |
 | D. Exams | EXAM, ingest path, control room, load tests | Week 5 | B, A |
-| E. AI tutor | Gateway, bank-grounded explanations, retrieval, eval set, photo solve; textbook ingestion after D1 | Week 1 (ingestion and eval set), week 4 (gateway) | B (OCR pipeline is shared), C (answer context) |
+| E. AI tutor | Gateway, bank-grounded explanations, retrieval, eval set, photo solve, written marking (§4.10); textbook ingestion after D1 | Week 1 (ingestion and eval set), week 4 (gateway) | B (OCR pipeline is shared), C (answer context) |
 | F. Gamification and alerts | GAM ledger, streaks, boards, PLAN notifications | Week 3 | C (events) |
 | G. Commerce and ops | PAY, entitlements, admin console, support | Week 5 | A |
 | H. Clients | Design system, React PWA, Android app, sync library, localisation | Week 1 | API contracts from each stream |
@@ -1049,12 +1073,13 @@ Permissions and recovery:
 |---|---|
 | 2 | Android and web spike decided; OCR and model shortlist chosen on a 100-item eval; bank inventory and timing study done; D7 confirmed |
 | 3 | Gamification rules confirmed (D6) |
-| 4 | D1, D4 and D8 answered; velocity checked against plan; staffing decision |
+| 4 | Written-marking accuracy and demand tests decided (D9); D1, D4 and D8 answered; velocity checked against plan; staffing decision |
 | **6** | **First end-to-end feature** (below) on staging; bKash sandbox credentials |
 | 8 | Exam ingest prototype passes fault injection at 20,000 simulated candidates; settles D5 and the S12 option |
 | 10 | Exam alpha at 20,000; tutor eval v1 on all launch subjects; D3 decided |
+| 12 | Teacher batch and review queue on staging |
 | 14 | 50,000-candidate load test; pilot content (about 15,000 verified questions) ready; payments in sandbox |
-| 16 | **Free** closed pilot: one track, 2,000–5,000 students, live exams up to 5,000, photo solve labelled beta |
+| 16 | **Free** closed pilot: one track, 2,000–5,000 students, teacher batches for the subjects that passed, live exams up to 5,000, photo solve labelled beta |
 | 20 | Payments live; penetration test; rehearsal at 25,000 (1.25 × the launch cap) |
 | **28** | **P0 launch** with live exams capped at 20,000, if every gate in §8.2 passes. Week 24 only with the staffing additions in §0.1 by week 6. |
 | Launch + 6–10 weeks | Live exams at 50,000, then 200,000, each after a rehearsal at 1.25 × the size |
@@ -1076,10 +1101,11 @@ Permissions and recovery:
 
 | Gate | Measure |
 |---|---|
-| Feature completeness | All 87 P0 IDs demonstrated against written acceptance tests |
+| Feature completeness | All 93 P0 IDs demonstrated against written acceptance tests |
 | Content | Launch tracks have at least 30 verified questions per topic; every published key has two-person verification; no published item has unknown `source_rights` |
 | Learning-record integrity | Replay test: 1 million synthetic answers with 5% duplicates and reordering produce identical projections; the sampled rebuild comparison (§3.6) shows no differences |
 | AI tutor | Every row of §4.8 passes |
+| Written marking | Each released subject passes the §4.10 gate, with a published accuracy report; a teacher cannot read another batch |
 | Gamification | The §5.5 scenario and 20 other clock, duplicate and correction cases pass as automated tests; no XP granted twice in the replay test |
 | Exam correctness | The fault-injection test in §6.4 passes: every acknowledged answer is scored, the contiguity check catches every injected gap, and the merit list is identical across three replays |
 | Exam scale | Rehearsal at 25,000 (1.25 × the launch cap) passes §6.4 with zero acknowledged answers lost; provisional score within 5 s at p95. A 250,000 rehearsal is the gate for the first 200,000 exam, not for launch. |
@@ -1253,7 +1279,9 @@ Section numbers refer to this document. "Platform" means the NFR owner (event pi
 | ANL-05, ANL-06, ANL-07, ANL-08 | P1 | Analytics (ANL) | §8.4 | 4 |
 | ANL-09 | P2 | Analytics (ANL) | §8.4 | 1 |
 | AI-01, AI-02, AI-02a, AI-03, AI-04, AI-05, AI-05a, AI-15, AI-15a | P0 | AI Tutor (AI) | §4 | 9 |
-| AI-06, AI-07, AI-07a, AI-07b, AI-08, AI-09, AI-10, AI-11 | P1 | AI Tutor (AI) | §4.9 | 8 |
+| AI-06, AI-08, AI-09, AI-10, AI-11 | P1 | AI Tutor (AI) | §4.9 | 5 |
+| AI-07, AI-07a, AI-07b, AI-07c, AI-07d | P0 | AI Tutor (AI) | §4.10 | 5 |
+| INST-02a | P0 | Institution (INST) | §4.10 | 1 |
 | AI-12, AI-13, AI-14 | P2 | AI Tutor (AI) | §4.9 | 3 |
 | GAM-01, GAM-02, GAM-03 | P0 | Gamification (GAM) | §5 | 3 |
 | GAM-04, GAM-05, GAM-06, GAM-07 | P1 | Gamification (GAM) | §5.7 | 4 |
@@ -1301,17 +1329,17 @@ Section numbers refer to this document. "Platform" means the NFR owner (event pi
 | PRAC | 7 | 5 | 1 | 13 |
 | EXAM | 9 | 6 | 2 | 17 |
 | ANL | 3 | 5 | 1 | 9 |
-| AI | 9 | 8 | 3 | 20 |
+| AI | 14 | 5 | 3 | 22 |
 | GAM | 3 | 4 | 2 | 9 |
 | PLAN | 2 | 5 | 1 | 8 |
 | COM | 1 | 2 | 2 | 5 |
 | PAR | 0 | 4 | 1 | 5 |
-| INST | 0 | 8 | 3 | 11 |
+| INST | 1 | 8 | 3 | 12 |
 | PAY | 5 | 2 | 1 | 8 |
 | OFF | 2 | 2 | 1 | 5 |
 | OPS | 5 | 3 | 0 | 8 |
 | NFR | 11 | 2 | 0 | 13 |
-| **Total** | **87** | **70** | **20** | **177** |
+| **Total** | **93** | **67** | **20** | **180** |
 
 The row counts in the coverage table sum to the same figures and match the summary in `features.md`.
 
@@ -1342,14 +1370,14 @@ Building starts on the default in each row. A different answer changes only the 
 | D6 | Gamification rules | Leaderboards by recorded time; per-day rules by effective date; final streak settlement; XP kept on downward corrections; notebook derived from rescored answers; minors shown with opt-out (C12, C13) | GAM engine details (§5) | Product | Week 3 |
 | D7 | Live-exam closing policy | Late window to end + 10 min for answers timed before the end; provisional score within 5 s; merit at end + 15 min or later (C1, C3) | Exam ingest and scorer (§6.2–§6.4) | Product + exam lead | Week 2 |
 | D8 | Content rights for scanned guidebook and admission-paper questions | Record `source_rights`; unknown rights cannot be published (C22) | Publishing imported content (§7.1) | Head of content + legal | Week 4 |
-| D9 | Is CQ photo marking in launch scope? | No: AI-07, AI-07a and AI-07b stay P1 | Product position, written-grading work and teacher time (§4.9; [market-validation §7](market-validation.md)). Test first: 200 handwritten CQ answers, AI against two teachers | Product + AI/ML engineer | Before building starts; latest week 4 |
+| D9 | Teacher-checked CQ marking as the launch differentiator | Yes: AI-07 to AI-07d and INST-02a are P0, released per subject only after the §4.10 gate; if no subject passes, AI-07 to AI-07d and INST-02a return to P1 | Product position, §4.10 work, teacher time ([strategy](product-strategy.md)) | Product + AI/ML engineer | Week 4 |
 
 ## 11. Verifying this design
 
 How to check this document and the design it describes:
 
-- **Coverage.** Extract every ID from `features.md` and from §9 and compare the two sets; both must contain 177 unique IDs with matching priorities.
+- **Coverage.** Extract every ID from `features.md` and from §9 and compare the two sets; both must contain 180 unique IDs with matching priorities.
 - **Diagrams.** Render the five Mermaid blocks (learner sequence, system, ER, live exam, payment) in a Markdown preview.
 - **Design risks, tested early.** The week-2 Android and web spike (§0.3), the 100-item model shortlist eval (§8.1), the week-8 exam fault-injection test (§6.4) and the week-10 exam alpha each produce a pass or fail against a number written here.
-- **Review closure.** Every finding in `architecture-review.md` maps to a change C1–C25 or a decision D1–D8 above. D9 comes from `market-validation.md`.
+- **Review closure.** Every finding in `architecture-review.md` maps to a change C1–C25 or a decision D1–D8 above. D9 comes from `product-strategy.md`.
 - **Launch.** The gates in §8.2 are the end-to-end verification; each maps to an automated test suite or a recorded drill.

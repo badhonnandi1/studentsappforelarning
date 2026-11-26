@@ -167,9 +167,11 @@
 | AI-05 | P0 | Guardrails: education-only topic limits, child-safe moderation, AI disabled during live exams |
 | AI-05a | P0 | Usage limits and feedback: per-plan daily quotas, rate limiting, thumbs up/down with reason, flagged answers go to a review queue |
 | AI-06 | P1 | Tutor modes: Socratic/hint mode (doesn't reveal the answer at once) and direct solution mode; parents/teachers can lock the mode |
-| AI-07 | P1 | Written-answer grader, input: student types or photographs a handwritten answer |
-| AI-07a | P1 | Grader rubrics: CQ levels (ক/খ/গ/ঘ marking); BCS Written (essay, composition, translation, math); SSC/HSC English writing (paragraph, letter, essay, email) |
-| AI-07b | P1 | Grader output: score, rubric breakdown, missing points, model answer, rewrite suggestions |
+| AI-07 | P0 | Written-answer grader, input: student types or photographs a handwritten answer |
+| AI-07a | P0 | Grader rubrics: CQ levels (ক/খ/গ/ঘ marking) at launch; BCS Written (essay, composition, translation, math) and SSC/HSC English writing (paragraph, letter, essay, email) follow later |
+| AI-07b | P0 | Grader output: score, rubric breakdown, missing points, model answer, rewrite suggestions |
+| AI-07c | P0 | Teacher review of written marks: a queue showing photo, draft mark per part and the answer text behind it; the teacher's mark is final; students see "teacher checked" or "practice estimate" |
+| AI-07d | P0 | Published marking accuracy per subject and part, measured against two teachers and re-measured on every model or prompt change |
 | AI-08 | P1 | Quiz generator from any topic, or from uploaded notes/photo; items labelled "AI" and kept apart from the verified bank |
 | AI-09 | P1 | Chapter summariser: short notes, key points, formula list, mind-map outline, "last-night revision" sheet |
 | AI-10 | P1 | AI study coach: weekly plan from exam date, mastery map and available hours; re-plans when days are missed; daily nudges |
@@ -233,6 +235,7 @@
 |---|---|---|
 | INST-01 | P1 | Institution workspace: logo/branding, branches, teachers, batches/sections |
 | INST-02 | P1 | Student roster management (invite, CSV, roll number); seat/licence allocation |
+| INST-02a | P0 | Teacher batch, minimal: approved teacher account, join code, set a written task with a rubric, collect answers |
 | INST-03 | P1 | Exam creation from the platform bank and/or the institution's private bank (private questions stay private) |
 | INST-04 | P1 | Batch exam scheduling (online), with results and merit list within the batch |
 | INST-05 | P1 | Mobile OMR scanning: printable OMR sheet generator, phone-camera scan, auto-grade, results synced to student accounts |
@@ -327,14 +330,14 @@
 | PRAC | 7 | 5 | 1 | 13 |
 | EXAM | 9 | 6 | 2 | 17 |
 | ANL | 3 | 5 | 1 | 9 |
-| AI | 9 | 8 | 3 | 20 |
+| AI | 14 | 5 | 3 | 22 |
 | GAM | 3 | 4 | 2 | 9 |
 | PLAN | 2 | 5 | 1 | 8 |
 | COM | 1 | 2 | 2 | 5 |
 | PAR | 0 | 4 | 1 | 5 |
-| INST | 0 | 8 | 3 | 11 |
+| INST | 1 | 8 | 3 | 12 |
 | PAY | 5 | 2 | 1 | 8 |
 | OFF | 2 | 2 | 1 | 5 |
 | OPS | 5 | 3 | 0 | 8 |
 | NFR | 11 | 2 | 0 | 13 |
-| **Total** | **87** | **70** | **20** | **177** |
+| **Total** | **93** | **67** | **20** | **180** |
