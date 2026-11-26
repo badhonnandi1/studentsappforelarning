@@ -7,6 +7,7 @@
 - [`system-design-v2.md`](system-design-v2.md): the design the team builds from.
 - [`architecture-review.md`](architecture-review.md): the independent review that shaped it.
 - [`features.md`](../features.md): the requirements.
+- [`market-validation.md`](market-validation.md): education-system fit, competitors and the open question of what makes the app stand out.
 
 Figures marked *est.* are planning estimates, not measurements.
 
@@ -77,7 +78,7 @@ flowchart LR
 | Backend and database | Python (FastAPI) and PostgreSQL | Proven, low-cost. One database keeps learning records consistent. |
 | Apps | One React Native codebase for the Android app and the web app | Must run on Android 8 phones with 2–3 GB RAM and stay under about 30 MB. Confirmed by a device test in week 2. |
 | AI | Claude models: a cheaper model for simple explanations, a stronger one for maths and photos | Models are chosen by a Bangla, Banglish and maths test, not by reputation |
-| Hosting | AWS (Mumbai) with a Cloudflare CDN | Close to Bangladesh. Pending a legal check on data residency. |
+| Hosting | AWS (Mumbai) with a Cloudflare CDN | Close to Bangladesh. No local-storage requirement was found in the 2026 data law; transfer rules need a legal check. |
 
 ## 4. The three hardest problems and how the design handles them
 
@@ -99,6 +100,8 @@ flowchart LR
 | 20 | Payments live; security penetration test |
 | **28** | **Launch** (week 24 if three more people join by week 6) *est.* |
 | Launch + 6–10 weeks | First 200,000-student national exam, after rehearsals *est.* |
+
+If building starts the week of 30 November 2026, week 16 falls during SSC 2027 (from 14 March 2027), so **the pilot is for SSC 2028 students**.
 
 **Building in parallel from week 1:**
 
@@ -134,7 +137,8 @@ flowchart LR
 | AI tutor quality in Bangla, Banglish and handwritten maths; rights to use NCTB textbooks | Test shortlisted models on 100 items; ask for textbook rights early; cite verified explanations if rights are refused | Weeks 4 and 10 |
 | Exam correctness at national scale | Fault-injection tests at 20,000, then staged rehearsals before larger exams | Week 8 |
 | Team capacity in backend, AI, platform and QA | Check progress against plan at week 4; add people or move the launch date | Week 4 |
-| Payments and Google Play policy for Bangladesh | Apply for bKash and gateway accounts in week 1; get a policy opinion; build web payments first | Week 6 |
+| Google Play requires its own billing for subscriptions sold in the Android app (15% fee) | Sell by bKash and gateways on the web; decide on in-app Play Billing; apply for gateway accounts in week 1 | Week 6 |
+| Established apps already offer the planned features, including AI marking of written answers | Test our marking against real teachers before building; compete on measured, visible accuracy | Week 4 |
 
 ## 8. Decisions still open
 
@@ -143,13 +147,14 @@ Building starts on a sensible default for each. A different answer changes only 
 | # | Decision | Default used meanwhile | Needed by |
 |---|---|---|---|
 | D1 | Permission to use and quote NCTB textbooks | Tutor cites the verified question bank | Week 4 |
-| D2 | How Android in-app payments work with Google Play | Payments built for the web first | Week 6 |
+| D2 | Sell inside the Android app through Google Play, or only on the web | Payments built for the web first | Week 6 |
 | D3 | Which AI models pass our Bangla, Banglish and maths tests | Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5; photo solve labelled beta | Week 10 |
-| D4 | Legal rules for minors' consent, data retention and hosting location | Guardian consent by OTP at sign-up; Mumbai hosting | Week 4 |
+| D4 | Legal review under the 2026 data law: guardian consent, sensitive data, retention, transfer abroad | Guardian consent by OTP at sign-up; Mumbai hosting | Week 4 |
 | D5 | Does launch need 200,000-student exams, or is that the target ceiling? | Launch cap 20,000 | Week 8 |
 | D6 | Gamification fine print (late answers, corrections, minors on leaderboards) | The rules in design §5 | Week 3 |
 | D7 | When late exam answers are accepted and when results publish | Late answers accepted for 10 minutes; provisional score within 5 s; results 15 minutes after the end or later | Week 2 |
 | D8 | Rights to questions scanned from books and past papers | Unknown rights cannot be published | Week 4 |
+| D9 | Should AI marking of handwritten written answers be in the launch? | No, until an accuracy test against two teachers passes | Week 4 |
 
 ## 9. How progress will be judged
 

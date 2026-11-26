@@ -67,7 +67,7 @@ Option **S12** (exam answers written straight to DynamoDB) is not adopted. It is
 | Year-1 traffic | 500,000 registered, 60,000 daily, 6,000 concurrent outside exams. |
 | Live exam | Design ceiling 200,000 concurrent, 100 MCQ, 60 minutes (NFR-01). **[Decision]** Launch exams are capped at 20,000 registrants; 50,000 and 200,000 follow staged rehearsals (C17). |
 | Content at launch | 150,000 questions, 60 NCTB textbooks (about 15,000 pages). How much of the bank is already verified is unknown and is measured in week 1 (§8.1). |
-| Hosting | AWS ap-south-1 (Mumbai) plus Cloudflare edge. No legal requirement to host inside Bangladesh (open decision D4). |
+| Hosting | AWS ap-south-1 (Mumbai) plus Cloudflare edge. No requirement to host inside Bangladesh was found in the Personal Data Protection Act 2026; transfer abroad has conditions (§7.5, open decision D4). |
 | Currency | ৳122 per US$1, for estimates only. |
 
 ### 0.2 Stack evaluation
@@ -121,7 +121,7 @@ Maths is rendered once at publish time (KaTeX on the server, output stored as HT
 
 ### 1.2 The SSC physics walk-through
 
-Rafi, Class 10 Science, Bangla version, enrolled in "SSC Science 2027". He opens the lesson "নিউটনের গতিসূত্র".
+Rafi, Class 10 Science, Bangla version, enrolled in "SSC Science 2028". He opens the lesson "নিউটনের গতিসূত্র".
 
 ```mermaid
 sequenceDiagram
@@ -370,6 +370,7 @@ Conventions: UUIDv7 primary keys, `timestamptz` in UTC, money as integer poisha,
 | CQ subparts and rubrics (QB-01a) | `cq_subparts(question_version_id, label, marks, bloom_level, model_answer)`; `rubric_points(subpart_id, description, marks)` | **[Rule]** At P0, written answers are self-marked against the rubric and stored with `scoring_source = self`. They are excluded from merit lists. AI and teacher grading (P1) write the same structure with a different source. |
 | Metadata (QB-03, QB-04) | Columns for source, difficulty (author and computed), Bloom level, marks, time estimate, tags; `video_url`, `concept_note_id` | — |
 | Papers (QB-09) | `papers(id, board, year, unit)`; `paper_items(paper_id, position, question_version_id)` | A paper pins versions, so it reads the same forever. |
+| Exam blueprints for school tracks | Blueprint sections (§6.2) | SSC 2027 onwards has separate CQ, short-answer and MCQ sections, plus practical marks in some subjects, with a different split by subject group ([market-validation §2.1](market-validation.md)). Splits are data per subject and year. Confirm the 2028 split before building mocks. |
 | Attempts | `attempt_answers(id, user_id, track_enrolment_id, session_id or exam_attempt_id, question_version_id, lang, response, is_correct, marks_awarded, time_spent_ms, answered_at, received_at, effective_at, scoring_source)` | `id` is generated on the device. Uniqueness and idempotency are on `(user_id, id)`, so one user's replay can never return another user's row (C4). Rows are never updated after scoring. Corrections are separate `score_adjustments` rows. |
 | Exam answer log (EXAM-05) | `exam_answer_batches(attempt_id, seq, received_at, answers)`, primary key `(attempt_id, seq)`; `exam_answers_latest(attempt_id, question_version_id, seq, response)` | Every acknowledged batch is stored append-only. Scoring reads the latest table; the contiguity check reads the log (§6.3). |
 | Catalogue and entitlements (PAY-01, PAY-02) | `products`, `product_grants(product_id, scope_type, scope_id, quota)`; `entitlements(user_id, product_id, source, source_ref, starts_at, ends_at, status)`; `entitlement_events` | Sources: payment, coupon, admin grant, institution seat, trial, scholarship. Validity is a number of days or "until exam date". Access is the union of active entitlements plus free quotas. |
@@ -600,9 +601,10 @@ Sent from the question screen after Rafi's wrong answer.
 |---|---|
 | Subject chat history (AI-01) | One thread list per subject per enrolment; "new chat" creates a thread. The model sees the last six turns plus a rolling summary. **[Rule]** Threads are kept 12 months and the student can delete them. |
 | Child safety (AI-05) | Moderation on input and output. A scope classifier keeps answers to education. Self-harm or abuse disclosures get a fixed, reviewed safe response with help resources, not a model improvisation. The tutor never asks for contact details, address or photos of people. |
+| Provider rules for minors | Anthropic requires services used by minors to have age verification, content filtering, monitoring and reporting, safety guidance for minors, its child-safety prompt, a public statement on child safety and privacy, and a notice that the student is talking to AI ([guidance](https://support.claude.com/en/articles/9307344)). All are part of AI-05 at launch. Grading that decides admission or certification needs qualified human review ([usage policy](https://www.anthropic.com/legal/aup)). |
 | Live-exam lockout (AI-05) | When an attempt starts, EXAM writes `exam_lock:{user_id}` in Redis, expiring at exam end. The gateway checks it on every tutor and photo request, on every device. It fails closed: if Redis is unreachable, anyone registered for an exam currently running is refused, using a registry list held in memory. |
 | Cache privacy | Only the canonical cache exists at P0 (C5). Its keys contain only content ids, and its entries are generated without personal context. A release test asks the same canonical question as two users with different histories and asserts identical cached text with no personal data. Photos and thread-dependent answers are never cached. A scoped free-form semantic cache is P1 (§8.4). |
-| Per-user cost (AI-15) | Each provider call writes `ai_usage` (tokens in, out and cached, model, cost). **[Rule]** Free plan: 10 messages and 2 photo solves per Dhaka day. Paid: 100 and 20. Above a per-user ceiling of US$0.15 a day, routing drops to the cheap tier. A global daily budget breaker pages on-call. **[Decision]** Paid quotas and the per-user ceiling are reset as a share of the plan price once pricing is fixed (D2). |
+| Per-user cost (AI-15) | Each provider call writes `ai_usage` (tokens in, out and cached, model, cost). **[Rule]** Free plan: 10 messages and 2 photo solves per Dhaka day. Paid: 100 and 20. Above a per-user ceiling of US$0.15 a day, routing drops to the cheap tier. A global daily budget breaker pages on-call. **[Decision]** Paid quotas and the per-user ceiling are reset as a share of the plan price once pricing is fixed (D2). A free user at the full quota costs about ৳260 a month, more than the top monthly plan of at least one competitor (৳249, [market-validation §6](market-validation.md)); revisit the free photo quota under D2. |
 | Feedback review (AI-05a) | Thumbs up or down with a reason. A thumbs-down, a failed verification or a key disagreement creates a review item for the subject's reviewers in CMS. Outcomes: correct the cached answer, add the case to the eval set, raise a content error report, or change a prompt. |
 | Prompts and evals (AI-15a) | Prompts are versioned files in the repo. A prompt or model change must pass the offline eval in CI before release. The cache key includes the prompt version. |
 
@@ -638,7 +640,7 @@ Targets are **[Rule]** proposals and block release.
 | Feature | Reuses | Adds |
 |---|---|---|
 | Socratic and direct modes, mode lock (AI-06) | Pipeline and context | A mode field on the thread; a lock set by a parent (PAR-03) or teacher |
-| Written grading (AI-07, AI-07a, AI-07b) | Photo OCR, `cq_subparts` and `rubric_points`, top tier | `gradings` with a score per rubric point, missing points, model answer and rewrite advice. Teacher override always wins. Launch gate: agreement with human examiners (quadratic weighted kappa 0.8 or higher). |
+| Written grading (AI-07, AI-07a, AI-07b) | Photo OCR, `cq_subparts` and `rubric_points`, top tier | `gradings` with a score per rubric point, missing points, model answer and rewrite advice. Teacher override always wins. Launch gate: agreement with human examiners (quadratic weighted kappa 0.8 or higher). Photos are checked for readability before marking. Competitors already claim this feature, so D9 decides whether it moves to P0 after an accuracy test. |
 | Quiz generator (AI-08) | Retrieval and generation | Items stored in `ai_items`, never in `questions`, shown with an "AI" label. They earn completion XP only, never affect mastery or leaderboards, and reach the bank only through the CMS workflow. |
 | Summariser (AI-09) | Retrieval over one chapter, citations | Stored per chapter and syllabus version; reviewed once, served to all |
 | Study coach (AI-10) | Mastery map, exam date, planner | Writes plan items into PLAN-03. The plan is data the student can edit, not a chat reply. |
@@ -691,7 +693,7 @@ All numbers in this section are **[Rule]** proposals, stored as versioned config
 |---|---|
 | Period | Weekly (Saturday 00:00 to Friday 23:59 Dhaka), monthly (calendar month, Dhaka), all-time |
 | Which period an XP row counts toward | **[Decision]** The period of its `recorded_at`, the time the server stored it. Late syncs land in the current period, and a closed board never changes (C12). |
-| Track | One board set per track and exam year, such as "SSC 2027". XP counts toward the enrolment it was earned in. |
+| Track | One board set per track and exam year, such as "SSC 2028". XP counts toward the enrolment it was earned in. |
 | Audience | National, district, institution (from the profile, labelled "self-reported" until verified rosters exist), friends |
 
 - Scores live in Redis sorted sets keyed by period, track and audience. They are rebuilt from the ledger on demand.
@@ -955,8 +957,8 @@ sequenceDiagram
 
 Other P0 commerce points:
 
-- **Gateways (PAY-03).** bKash directly, plus one aggregator (SSLCommerz or aamarPay) for Nagad, Rocket, Upay and cards. All sit behind one provider interface with the same verify-then-capture rule. Google Play Billing uses server-side purchase-token verification into the same capture transaction. Until D2 is settled, payment screens are built for the web first, and the Android purchase flow follows the D2 outcome.
-- **bKash flow [Needs evidence].** Confirm the create → execute → query sequence and webhook availability against bKash's current tokenised-checkout documentation before building.
+- **Gateways (PAY-03).** bKash directly, plus one aggregator (SSLCommerz or aamarPay) for Nagad, Rocket, Upay and cards. All sit behind one provider interface with the same verify-then-capture rule. Google Play Billing uses server-side purchase-token verification into the same capture transaction. Google requires Play Billing for education subscriptions sold in the app, and forbids steering users to other payment methods outside its enrolled programmes ([policy](https://support.google.com/googleplay/android-developer/answer/10281818)); Bangladesh is not named for alternative billing. So the Android app sells through Play Billing or sells nothing in the app, and wallets are used on the web. D2 settles which; payment screens are built for the web first.
+- **bKash flow.** [Execute Payment](https://developer.bka.sh/docs/execute-payment-4) completes the payment; the payment ID is valid for 24 hours and allows one execute attempt, so a timeout is resolved by a status query, never by executing again. **[Needs evidence]** Webhook availability, auto-debit eligibility and merchant fees.
 - **VAT invoices [Needs evidence].** Check with an accountant whether receipts must be VAT (Mushak) invoices before launch.
 - **Coupons, referrals, receipts (PAY-04).** Coupons are validated when the order is created and redeemed once per user by a unique constraint. Referral credits are a ledger. A worker produces the PDF invoice and SMS receipt.
 - **Manual grants (OPS-01).** Admin grants call the same entitlement interface with source `admin` and are audited.
@@ -1002,7 +1004,7 @@ Permissions and recovery:
 
 | Conflict | Resolution |
 |---|---|
-| **AUTH-10 (P2) puts parental consent in a later phase; NFR-07 (P0) requires it at launch.** | P0 ships the minimum that makes NFR-07 true: age from date of birth at sign-up; for under-18s a guardian's phone number confirmed by OTP, stored as a versioned consent record; private-by-default settings; a written retention policy; deletion and export handled by support within 30 days. Leaderboard display follows NFR-07 (first name and institution, opt-out) and is not gated on consent (§5.7). AUTH-10 at P2 adds the self-service consent dashboard and automated export and deletion. Needs legal review (D4). |
+| **AUTH-10 (P2) puts parental consent in a later phase; NFR-07 (P0) requires it at launch.** | P0 ships the minimum that makes NFR-07 true: age from date of birth at sign-up; for under-18s a guardian's phone number confirmed by OTP, stored as a versioned consent record; private-by-default settings; a written retention policy; deletion and export handled by support within 30 days. Leaderboard display follows NFR-07 (first name and institution, opt-out) and is not gated on consent (§5.7). AUTH-10 at P2 adds the self-service consent dashboard and automated export and deletion. The Personal Data Protection Act 2026 requires guardian consent under 18 (s.9); no regulation on the method was found, so OTP may need changing. Face photos are sensitive data with specific consent. Needs legal review (D4). |
 | GAM-03 (P0) needs a friends board; GAM-09 friends is P2. | P0 ships a minimal mutual friend link (§5.4). |
 | EXAM-06 and GAM-03 (P0) need institution scope; INST and AUTH-09 are P1. | P0 uses the institution chosen on the profile from a reference list, labelled "self-reported" on boards and merit lists (C15). Verified rosters replace it in P1. |
 | EXAM-02 (P0) lists institution and batch exams; INST-04 is P1. | P0 supports audience-restricted exams set up by ops. Self-service scheduling is P1. |
@@ -1065,6 +1067,8 @@ Permissions and recovery:
 | Full 150,000-question bank | 24,000 h: about 33 reviewers over 24 weeks (58 if explanations are missing) | About 2,900 h: 4–5 reviewers |
 
 **[Decision]** Only the launch tracks are verified before launch. The rest of the bank is imported as unpublished.
+
+**Pilot cohort.** SSC 2027 starts on 14 March 2027 ([Daily Star](https://www.thedailystar.net/news/education/news/ssc-exams-be-held-march-14-next-year-no-further-delay-milon-4261326)). If building starts the week of 30 November 2026, week 16 falls during that exam, so the pilot cohort is SSC 2028. HSC 2027 starts on 6 June 2027, about when week 28 arrives.
 
 **First end-to-end feature (week 6).** One SSC Physics chapter: OTP sign-in → a 5-question Learn lesson → a wrong answer with verified explanation → "খ কেন ভুল?" answered with a verified citation (a textbook page if D1 allows, otherwise the verified explanation and question id) → XP and streak → the question in the Mistake Notebook → a reminder push the next day. Android may be a debug build. It exercises AUTH, TAX, QB, PRAC, AI, GAM, PLAN, the event pipeline and both clients, and it contains both pillars.
 
@@ -1165,7 +1169,7 @@ Prices were retrieved on 2026-11-26 unless a different date is shown. "Est." mea
 | SMS in Bangladesh | ৳0.33–0.35 non-masking per segment; regulator floor ৳0.19. Bangla text is Unicode at 70 characters per segment, so budget 2 segments per Bangla SMS. | sms.net.bd list prices (undated); use ৳0.35 |
 | SQS | $0.40 per million requests | Est. |
 | Wallet payment fees | 1.4–2.1% of the amount; cards about 2.5% | Secondary sources that disagree; get a merchant quote |
-| Google Play service fee | From 10%; Bangladesh terms not announced | Android Developers Blog, June 2026 |
+| Google Play service fee | 15% on auto-renewing subscriptions in markets such as Bangladesh; a June 2026 announcement of lower fees gave no Bangladesh date | [Play Console Help](https://support.google.com/googleplay/android-developer/answer/112622); Android Developers Blog, June 2026 |
 
 **AI cost formulas**
 
@@ -1331,13 +1335,14 @@ Building starts on the default in each row. A different answer changes only the 
 | # | Decision | Default adopted in v2 | What it blocks | Owner | Needed by |
 |---|---|---|---|---|---|
 | D1 | Licence to index and quote NCTB textbooks | Tutor cites verified explanations and question ids; textbook pages are added if the licence is granted | Textbook ingestion and page citations (AI-02, AI-02a; §4.2, §4.3) | Product + legal | Week 4 |
-| D2 | In-app payments on Android: Google Play Billing, local wallets or both | Payment screens built for the web first | Android purchase flow, Play Billing, pricing and AI quotas (§4.6, §7.2) | Product + payments lead | Week 6 |
+| D2 | In-app payments on Android: sell through Play Billing, or sell only on the web | Payment screens built for the web first; no wallet checkout inside the Android app | Android purchase flow, Play Billing, pricing and AI quotas (§4.6, §7.2) | Product + payments lead | Week 6 |
 | D3 | Which models pass the Bangla, handwriting and maths gates | Haiku 5.5 / Sonnet 5.5 / Opus 5.5 routing; photo solve labelled beta until it passes | Model per route, photo-solve launch scope, AI costs (§4.7, §4.8, §8.6) | AI/ML engineer | Week 10 |
-| D4 | Legal review: minors' consent, data retention, data residency | Guardian OTP consent at sign-up; AWS Mumbai hosting | Consent screens, handwriting data collection, production hosting region (§7.5, §4.8) | Legal | Week 4 |
+| D4 | Legal review under the Personal Data Protection Act 2026: guardian consent method, sensitive data, retention, transfer abroad | Guardian OTP consent at sign-up; AWS Mumbai hosting | Consent screens, handwriting data collection, production hosting region (§7.5, §4.8) | Legal | Week 4 |
 | D5 | 200,000 at launch, or a design ceiling? | Design ceiling; launch cap 20,000 (C17) | Order of exam-scale work (§6, §8.1) | Product | Week 8 |
 | D6 | Gamification rules | Leaderboards by recorded time; per-day rules by effective date; final streak settlement; XP kept on downward corrections; notebook derived from rescored answers; minors shown with opt-out (C12, C13) | GAM engine details (§5) | Product | Week 3 |
 | D7 | Live-exam closing policy | Late window to end + 10 min for answers timed before the end; provisional score within 5 s; merit at end + 15 min or later (C1, C3) | Exam ingest and scorer (§6.2–§6.4) | Product + exam lead | Week 2 |
 | D8 | Content rights for scanned guidebook and admission-paper questions | Record `source_rights`; unknown rights cannot be published (C22) | Publishing imported content (§7.1) | Head of content + legal | Week 4 |
+| D9 | Is CQ photo marking in launch scope? | No: AI-07, AI-07a and AI-07b stay P1 | Product position, written-grading work and teacher time (§4.9; [market-validation §7](market-validation.md)). Test first: 200 handwritten CQ answers, AI against two teachers | Product + AI/ML engineer | Before building starts; latest week 4 |
 
 ## 11. Verifying this design
 
@@ -1346,5 +1351,5 @@ How to check this document and the design it describes:
 - **Coverage.** Extract every ID from `features.md` and from §9 and compare the two sets; both must contain 177 unique IDs with matching priorities.
 - **Diagrams.** Render the five Mermaid blocks (learner sequence, system, ER, live exam, payment) in a Markdown preview.
 - **Design risks, tested early.** The week-2 Android and web spike (§0.3), the 100-item model shortlist eval (§8.1), the week-8 exam fault-injection test (§6.4) and the week-10 exam alpha each produce a pass or fail against a number written here.
-- **Review closure.** Every finding in `architecture-review.md` maps to a change C1–C25 or a decision D1–D8 above.
+- **Review closure.** Every finding in `architecture-review.md` maps to a change C1–C25 or a decision D1–D8 above. D9 comes from `market-validation.md`.
 - **Launch.** The gates in §8.2 are the end-to-end verification; each maps to an automated test suite or a recorded drill.

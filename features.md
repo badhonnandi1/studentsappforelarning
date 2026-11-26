@@ -43,7 +43,7 @@
 | AUTH-02 | P0 | Device/session management; a single active session can be enforced during live exams |
 | AUTH-03 | P0 | Roles: Student, Parent, Teacher, Institution Admin, Content Author, Reviewer, Ops Admin, Super Admin (fine-grained permissions per role) |
 | AUTH-04 | P0 | Student profile: name, photo, class, group (Science / Business Studies / Humanities), version (Bangla/English), curriculum (General / Madrasah / Technical), institution, district/upazila, board, exam year |
-| AUTH-05 | P0 | Multi-track enrolment on one account, e.g. "HSC Science 2027" + "Medical Admission 2027", later "BCS" |
+| AUTH-05 | P0 | Multi-track enrolment on one account, e.g. "HSC Science 2028" + "Medical Admission 2028", later "BCS" |
 | AUTH-06 | P1 | Track promotion flow (Class 10 → SSC → HSC → Admission → Job) with history preserved across tracks |
 | AUTH-07 | P1 | Parent–child linking via invite code or QR; one parent can have many children |
 | AUTH-08 | P1 | Multiple student profiles on one shared device, each with a PIN |
