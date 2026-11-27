@@ -15,7 +15,7 @@ is still pending (00 A.5); the plan's defaults are used.
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
-| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me` | in progress |
+| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants | in progress |
 | 10–13 | Social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
@@ -117,6 +117,22 @@ is still pending (00 A.5); the plan's defaults are used.
   - Display-name moderation (COM, step 11).
   - Rejecting suspended users in `current_actor`; suspension revokes their sessions instead (step 11).
   - Dormant-account and step-up rules (step 10).
+
+### RBAC and role grants (AUTH, step 9 part 3)
+- **Grants loader:** each module may expose `startup()`. `registry.run_startup()` calls these from `start_stack` after the engine exists. AUTH's `startup()` registers the DB loader: active grants joined to `role_permissions`, giving one `Grant` per (permission, scope). Grants are cached for 60 s in `auth:grants:{user_id}`.
+- **"Above your own":** a granter may grant or revoke a role only when every permission of that role is among the granter's own permissions in that scope. Only `super_admin` may grant or revoke `super_admin`. Otherwise the response is `403 role_above_own`. The route also requires `role.grant` in the grant's scope; by the seed only `super_admin` holds it.
+- **Grant rules:**
+  - An unknown role returns `422 unknown_role`. An unknown user returns `404`. An active duplicate returns `409`.
+  - The user row is locked, so concurrent grants to one user are serialised.
+  - `scope_id` must be set exactly when the scope is `subject` or `tenant` (422 otherwise).
+  - `reason` is required (3–500 characters, the same as runtime config).
+  - Audit actions are `auth.role.grant` (reason required) and `auth.role.revoke`.
+- **Revoking:**
+  - Revoking invalidates the grants cache. If Redis is down, a warning is logged and the 60 s TTL bounds the staleness.
+  - Revoking a staff role also ends the user's live `admin` sessions (reason `admin`), so a stale `roles` claim cannot keep the super-admin bypass alive for the rest of the access token's lifetime.
+  - Revoking an already revoked grant returns `404`.
+- **Super-admin bypass:** recorded as a structured security log event (`rbac_super_admin_bypass`), not as an `audit_log` row. `can()` is a synchronous core check with no transaction. Every write a super admin makes is still audited by the write's own `audited()` row, which carries the actor's roles.
+- **Roles claim after a grant:** a new grant shows in permission checks within 60 s (cache). The `roles` claim in the access token updates on the next refresh.
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

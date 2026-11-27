@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from app.core.redis import get_redis
+from app.core.security import actor as actor_mod
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("in_process_env")]
 
@@ -30,6 +31,7 @@ async def test_boots_live_and_ready(module: str, service: str, checks: set[str])
             ready = await client.get("/readyz")
             assert ready.status_code == 200, ready.text
             assert set(ready.json()["checks"]) == checks
+        assert (actor_mod._loader is not None) == ("db" in checks)  # AUTH startup hook ran
     with pytest.raises(RuntimeError):
         get_redis()  # closed on shutdown
 

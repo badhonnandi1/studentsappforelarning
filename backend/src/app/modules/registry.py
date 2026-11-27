@@ -71,6 +71,14 @@ def _collect(hook: str) -> Iterable[Any]:
             yield from fn()
 
 
+def run_startup() -> None:
+    """Call each module's ``startup()`` (after the engine exists); e.g. AUTH's grants loader."""
+    for module in MODULES:
+        fn: Callable[[], None] | None = getattr(load(module), "startup", None)
+        if fn is not None:
+            fn()
+
+
 def all_routers() -> list[Any]:
     return list(_collect("routers"))
 

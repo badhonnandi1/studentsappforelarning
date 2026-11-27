@@ -14,7 +14,7 @@ from tests.support.keys import SECRET_VARS, install_test_keys
 
 install_test_keys(os.environ)
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 
 import pytest
 from redis.asyncio import Redis
@@ -26,10 +26,18 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.redis import use_client
+from app.core.security.actor import set_grants_loader
 from app.modules.registry import load_models
 from tests.support import db as test_db
 
 load_models()
+
+
+@pytest.fixture(autouse=True)
+def no_global_grants_loader() -> Iterator[None]:
+    """Booting a deployable registers AUTH's DB loader process-wide; drop it after each test."""
+    yield
+    set_grants_loader(None)
 
 
 def worker_id() -> str:
