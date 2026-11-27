@@ -19,7 +19,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | done |
 | 10a | Staff SSO (R-07): OIDC client, start/callback, admin-audience checks | done |
 | 11 | COM moderation (in parts): folding, `moderate()`, terms admin, display-name checks (part 1); reports, restrictions, bans (part 2) | done |
-| 12–13 | Seeds, hardening | pending |
+| 12 | Seeds and smoke: `seed_reference`, `seed_dev`, end-to-end API test | done |
+| 13 | Hardening, README, OpenAPI snapshot | pending |
 
 ## Deviations
 
@@ -345,6 +346,17 @@ is still pending (00 A.5); the plan's defaults are used.
   - Resolve: there is no note column, so the note goes in the audit `reason` (and is the restriction's reason when one is applied). A resolved report is `409`. A restriction needs `decision=action_taken` and a report about a user (`user`, `display_name`, `profile_photo`, where `target_id` is the user id); post and `other` reports cannot carry one in B1 (`422 target_not_a_user`), because posts arrive in B2.
   - The resolution, the restriction and the idempotency record commit in one transaction.
 - **Terms admin:** `severity` uses low/medium/high on the API (1/2/3 in the DB). A delete is soft (`is_active=false`), and adding the same term again reactivates the row. Every write is audited (`com.term.create`, `com.term.delete`).
+
+### Seeds (step 12)
+- **Data shipped:** `seed/districts.csv` holds all 64 districts, keyed by BBS district geocode, with Bangla and English names. Check it against the current BBS list before launch.
+- **Data not shipped:** `upazilas.csv`, `institutions.csv` (BANBEIS, with EIIN) and `moderation_terms.csv` contain headers only. Making up ~495 upazilas, an EIIN list or a profanity list would put unverified data into production, so the data owner and the content team supply these files. `seed/README.md` documents the columns.
+- **`seed_reference.py`:** checks every row of every file before writing anything; a bad row raises `SeedError` with the file and line. Districts and upazilas upsert on id. Institutions upsert on `uuid5(EIIN)`, so reruns update in place. Terms upsert on `(lang, term_folded)`, folded the way the admin route folds them.
+- **`seed_dev.py`:**
+  - Creates one super admin (`admin@example.com`), three students in the reserved test phone block, and one Google and one Facebook identity. All go through the real account code (`create_user`, `create_social_account`); no provider is called. Reruns reuse every row.
+  - Prints an admin token from a real `sso` staff session.
+  - Refuses with `DevOnlyError` unless `APP_ENV` is `local` or `test`. Settings has no `dev` value; `local` is the dev environment. Tests cover the refusal in staging and prod.
+  - The script cannot mint a prod-valid token in any case: prod signing keys never exist outside the deployment.
+- **End-to-end test:** `tests/modules/auth/test_end_to_end.py` covers OTP sign-up → profile (seeded district) → guardian consent → refresh → session revoke (access token refused, refresh refused).
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
