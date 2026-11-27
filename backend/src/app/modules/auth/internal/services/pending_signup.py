@@ -20,6 +20,7 @@ from app.core.errors import ConflictError, GoneError, UnavailableError, Validati
 from app.core.redis import get_redis
 from app.core.security.crypto import decrypt_field, encrypt_field
 from app.core.security.hashing import keyed_hash
+from app.modules import com
 from app.modules.auth.contracts.events import SignInMethod
 from app.modules.auth.internal.models import User
 from app.modules.auth.internal.providers.base import VerifiedIdentity
@@ -99,6 +100,8 @@ async def complete(
     session: AsyncSession, body: SignUpCompleteIn, *, ip: str, now: datetime
 ) -> TokenPair:
     check_dob(body.date_of_birth, now)  # before the token is spent
+    if body.display_name:
+        await com.ensure_allowed(session, body.display_name, "display_name")
     data = await take(body.pending_signup_token)
     method = data.get("method") if data else None
     if data is None or (method != "otp" and method not in SOCIAL):

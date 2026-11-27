@@ -8,7 +8,9 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import uuid
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import Query
@@ -41,3 +43,18 @@ def decode_cursor(cursor: str | None, size: int) -> list[Any] | None:
     if not isinstance(value, list) or len(value) != size:
         raise ValidationAppError("Invalid cursor", details={"cursor": "malformed"})
     return value
+
+
+def time_id_after(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
+    """Decode a ``[created_at, id]`` cursor (newest-first keyset pages)."""
+    raw = decode_cursor(cursor, 2)
+    if raw is None:
+        return None
+    try:
+        return datetime.fromisoformat(raw[0]), uuid.UUID(raw[1])
+    except (TypeError, ValueError) as exc:
+        raise ValidationAppError("Invalid cursor", details={"cursor": "malformed"}) from exc
+
+
+def time_id_cursor(when: datetime, row_id: uuid.UUID) -> str:
+    return encode_cursor([when.isoformat(), str(row_id)])

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security.actor import Actor
 from app.core.security.crypto import decrypt_field
+from app.modules import com
 from app.modules.auth.internal.models import ExternalIdentity, User
 from app.modules.auth.internal.repositories import users as users_repo
 from app.modules.auth.internal.schemas.me import ConsentState, IdentityItem, MeOut, MePatchIn
@@ -47,7 +48,11 @@ async def get_me(session: AsyncSession, actor: Actor, now: datetime) -> MeOut:
 
 
 async def patch_me(session: AsyncSession, actor: Actor, body: MePatchIn, now: datetime) -> MeOut:
-    """Display-name moderation (COM ``moderate``) is wired in step 11."""
+    """A new display name goes through COM moderation first (a block is ``422``)."""
+    if body.display_name is not None:
+        await com.ensure_allowed(
+            session, body.display_name, "display_name", str(actor.user_id), user_id=actor.user_id
+        )
     async with session.begin():
         user = await summary.signed_in_user(session, actor, lock=True)
         for name, value in body.model_dump(exclude_unset=True, exclude_none=True).items():

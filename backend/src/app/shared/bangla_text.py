@@ -3,8 +3,8 @@
 ``normalise`` makes text comparable without losing meaning (NFC, no zero-width characters,
 ASCII digits, lower case, single spaces). ``fold`` goes further for matching: it merges letters
 that learners commonly swap (ি/ী, ু/ূ, ণ/ন, শ/ষ/স, …) and spelling variants of romanised Bangla,
-so "nioton er sutro" and "niooton er shutro" fold to the same string. Used by moderation (COM)
-and later by search.
+so "nioton er sutro" and "niooton er shutro" fold to the same string. ``fold_latin`` is the
+lighter fold for English words. Used by moderation (COM) and later by search.
 """
 
 from __future__ import annotations
@@ -55,7 +55,8 @@ LEET = str.maketrans(
     {"@": "a", "$": "s", "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t"}
 )
 _REPEATS = re.compile(r"(.)\1+")
-_NON_WORD = re.compile(r"[^\w\s]", re.UNICODE)
+_LONG_REPEATS = re.compile(r"(.)\1{2,}")
+_NON_WORD = re.compile(r"[^\w\s\u0980-\u09ff]")  # Bangla vowel signs are marks, not \w
 
 
 def normalise(text: str) -> str:
@@ -84,6 +85,13 @@ def fold_banglish(text: str) -> str:
 def fold(text: str) -> str:
     """Fold for matching: Bangla letters and Latin spellings both collapse to one form."""
     return fold_banglish(fold_bangla(text))
+
+
+def fold_latin(text: str) -> str:
+    """Fold English for matching: look-alikes and punctuation, and runs of 3+ letters
+    ("fuuuck" -> "fuck"). No Banglish rules, so "ass" and "as" stay different words."""
+    text = _NON_WORD.sub(" ", normalise(text).translate(LEET))
+    return _SPACES.sub(" ", _LONG_REPEATS.sub(r"\1", text)).strip()
 
 
 def tokens(text: str) -> list[str]:

@@ -18,7 +18,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo; privacy, guardian consent, consent documents, stale-session purge | done |
 | 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | done |
 | 10a | Staff SSO (R-07): OIDC client, start/callback, admin-audience checks | done |
-| 11–13 | COM, seeds, hardening | pending |
+| 11 | COM moderation (in parts): folding, `moderate()`, terms admin, display-name checks (part 1); reports, restrictions, bans (part 2) | part 1 done |
+| 12–13 | Seeds, hardening | pending |
 
 ## Deviations
 
@@ -320,6 +321,16 @@ is still pending (00 A.5); the plan's defaults are used.
   - a documented exception that trusts Workspace-enforced 2SV for the allowed domains.
 
   The code follows the spec (MFA `amr` required); nothing was relaxed.
+
+### Moderation (COM, step 11)
+- **CHECK lists (`b01_12`):** where 05's API and 01's CHECKs differ, the CHECK takes both. Report `target_type` adds `profile_photo` and `other`; restriction `scope` adds `profile` (the API's `all` is stored as `global`); decision `context` adds `content_report`, because report text is moderated.
+- **Folding bug fixed in `shared/bangla_text.py`:** the punctuation regex `[^\w\s]` treated Bangla vowel signs and the hasanta as punctuation (Python's `\w` does not match combining marks), so `fold("সয়তান")` gave `"সযত ন"`. The Bangla block now counts as word characters; `tests/shared/test_bangla_text.py` covers it.
+- **Two fold families:** `fold` (Bangla letters plus Banglish spelling rules, which collapse doubled letters) would make the English term "ass" equal to "as". English terms use the new `fold_latin` (look-alikes, punctuation, runs of 3+ letters); `bn` and `banglish` terms use `fold`. The text is folded both ways and each family is matched against its own terms.
+- **Matching:** whole tokens and n-grams, so a clean word that contains a term ("class") does not match. Runs of single letters are joined first ("b a d w o r d"). Severity 1 is `flag`, 2 is `block`, 3 is `block` with `alert=true`. Only flag and block are logged in `moderation_decisions`; no classifier runs in B1 (`classifier_score` stays null).
+- **Term cache:** active terms are cached per process for 5 minutes. An admin write drops the cache in that process only; other processes pick up the change within 5 minutes.
+- **Decision log on a block:** when `moderate` is called outside a transaction it commits its own log row, so a block is recorded even though the caller refuses the write.
+- **Display names:** user-entered names are checked on `PATCH /v1/me` and on `POST /v1/auth/sign-up/complete`, where a block is `422 moderation_blocked`. Sign-up checks the name before spending the pending token, so the user can retry. Provider-supplied names are not moderated in B1; they are never shown publicly until the user sets a display name. `first_name`/`last_name` are private and not moderated.
+- **Terms admin:** `severity` uses low/medium/high on the API (1/2/3 in the DB). A delete is soft (`is_active=false`), and adding the same term again reactivates the row. Every write is audited (`com.term.create`, `com.term.delete`).
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

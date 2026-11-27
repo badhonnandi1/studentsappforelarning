@@ -1,7 +1,7 @@
 """``/v1/me/profile`` and the profile photo (05 §D, rules in §C.4).
 
-Display-name moderation and photo moderation by a provider arrive with COM (step 11) and B4;
-in B1 a photo gets format, size and dimension checks and stays ``pending`` (not public).
+Display names are moderated on ``PATCH /v1/me`` (COM); photo moderation by a provider arrives
+in B4. In B1 a photo gets format, size and dimension checks and stays ``pending`` (not public).
 """
 
 from __future__ import annotations
