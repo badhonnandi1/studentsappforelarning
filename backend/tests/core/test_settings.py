@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from app.core.settings import Settings
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("no_env_secrets")]
 
 KEY = "k" * 32
 
@@ -23,6 +23,8 @@ def safe_prod(**overrides: Any) -> dict[str, Any]:
         "pii_hash_keys": dict.fromkeys(("phone", "email", "ip", "device"), KEY),
         "jwt_private_keys": {"k1": "pem"},
         "jwt_active_kid": "k1",
+        "pii_data_keys": {"d1": "wrapped"},
+        "pii_active_data_key": "d1",
         "staff_oidc_client_id": "client",
         "staff_oidc_client_secret": "secret",
         "staff_oidc_allowed_domains": ["example.com"],
@@ -66,6 +68,7 @@ def test_safe_prod_config_loads() -> None:
         ({"staff_oidc_allowed_domains": []}, "STAFF_OIDC_ALLOWED_DOMAINS"),
         ({"jwt_active_kid": "missing"}, "JWT_ACTIVE_KID"),
         ({"sms_api_key": ""}, "SMS_API_URL"),
+        ({"pii_active_data_key": "nope"}, "PII_ACTIVE_DATA_KEY"),
     ],
 )
 def test_prod_refuses_unsafe(override: dict[str, Any], message: str) -> None:

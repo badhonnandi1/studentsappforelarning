@@ -22,7 +22,7 @@ env:
   UV_FROZEN: "1"
   APP_ENV: test
   TEST_DATABASE_URL: postgresql+asyncpg://app_migrator:app_migrator@127.0.0.1:5432/studyplatform_test
-  TEST_REDIS_URL: redis://127.0.0.1:6379/0
+  TEST_REDIS_URL: redis://127.0.0.1:6379  # tests pick a database index per worker
   S3_ENDPOINT_URL: http://127.0.0.1:9000
   AWS_ACCESS_KEY_ID: localdev
   AWS_SECRET_ACCESS_KEY: localdev-secret

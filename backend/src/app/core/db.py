@@ -7,7 +7,7 @@ PgBouncer transaction pooling requires.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -83,7 +83,7 @@ def sessionmaker() -> async_sessionmaker[AsyncSession]:
     return _sessionmaker
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
+async def get_session() -> AsyncGenerator[AsyncSession]:
     """FastAPI dependency. Tests override it with a session in a rolled-back transaction."""
     async with sessionmaker()() as session:
         yield session

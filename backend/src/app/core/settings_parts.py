@@ -37,11 +37,14 @@ class DbSettings(BaseSettings):
 class AuthSettings(BaseSettings):
     jwt_private_keys: dict[str, SecretStr] = {}
     jwt_active_kid: str = ""
+    jwt_public_keys: dict[str, str] = {}  # kid -> PEM; verify-only deployables (exam-ingest)
     otp_hash_key: SecretStr = SecretStr("")
     pii_hash_keys: dict[str, SecretStr] = {}
     kms_backend: Literal["aws", "local"] = "local"
     kms_key_id: str = "local"
     local_kms_key: SecretStr = SecretStr("")
+    pii_data_keys: dict[str, str] = {}  # key id -> base64 data key wrapped by KMS
+    pii_active_data_key: str = ""
     access_token_minutes: int = 15
     refresh_token_days: int = 30
     staff_refresh_hours: int = 12

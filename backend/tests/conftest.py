@@ -7,10 +7,17 @@ import os
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("LOG_JSON", "false")
 os.environ.setdefault("TEST_PHONE_OTP", "123456")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "localdev")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "localdev-secret")
+os.environ.setdefault("S3_ENDPOINT_URL", "http://127.0.0.1:59000")
+from tests.support.keys import SECRET_VARS, install_test_keys
+
+install_test_keys(os.environ)
 
 from collections.abc import AsyncIterator
 
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from tests.support import db as test_db
@@ -51,3 +58,31 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         finally:
             await db_session.close()
             await outer.rollback()
+
+
+REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://127.0.0.1:56379")
+
+
+def redis_db_index() -> int:
+    """Database 0 is for local runs; each xdist worker gets its own index from 1."""
+    worker = worker_id()
+    return 1 + (int(worker[2:]) if worker.startswith("gw") else 0)
+
+
+@pytest.fixture
+async def redis() -> AsyncIterator[Redis]:
+    client = Redis.from_url(f"{REDIS_URL}/{redis_db_index()}")
+    await client.flushdb()
+    try:
+        yield client
+    finally:
+        await client.flushdb()
+        await client.aclose()
+
+
+@pytest.fixture
+def no_env_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """pydantic-settings deep-merges dict settings from the environment into constructor
+    values, so tests that build Settings with specific keys must remove the global test keys."""
+    for name in SECRET_VARS:
+        monkeypatch.delenv(name, raising=False)

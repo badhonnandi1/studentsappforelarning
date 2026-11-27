@@ -88,6 +88,8 @@ def deploy_problems(s: Settings) -> list[str]:
             problems.append(f"PII_HASH_KEYS[{purpose}] must be at least 32 bytes")
     if not s.jwt_private_keys or s.jwt_active_kid not in s.jwt_private_keys:
         problems.append("JWT_ACTIVE_KID must name a key in JWT_PRIVATE_KEYS")
+    if s.pii_active_data_key not in s.pii_data_keys:
+        problems.append("PII_ACTIVE_DATA_KEY must name a key in PII_DATA_KEYS")
     if s.google_enabled and not s.google_client_ids:
         problems.append("GOOGLE_CLIENT_IDS is required when Google is enabled")
     if s.facebook_enabled and (not s.facebook_app_id or _short(s.facebook_app_secret)):
