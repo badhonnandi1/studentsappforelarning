@@ -14,7 +14,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 5 | NFR: queue, outbox, relay, consumers, idempotency, runtime config, partitions | done |
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
-| 8–13 | SMS, AUTH, social, staff SSO, COM, seeds, hardening | pending |
+| 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
+| 9–13 | AUTH, social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
 
@@ -59,6 +60,17 @@ is still pending (00 A.5); the plan's defaults are used.
 - **Shared boot code:** start-up shared by every deployable is in `entrypoints/boot.py`, which does not import the DB, so exam-ingest can use it. The DB-backed start-up for api, ai-gateway and workers is in `entrypoints/stack.py`. A subprocess test checks that the ingest app loads no SQLAlchemy, asyncpg, Alembic or `core.db`.
 - **Docker and Compose:** per-deployable Docker commands and Compose services are left to step 13; the Dockerfile still defaults to the API.
 
+### SMS (PLAN)
+- **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
+- **`fake_sent` status:** added to the `sms_messages.status` CHECK (01 lists queued/sent/delivered/failed; 05's risk table names `fake_sent`). Numbers in the reserved test block (`+8801700000000`–`+8801700009999`) never reach a gateway; they are stored as `fake_sent` with provider `test_block`.
+- **Job payload:** holds the message id, its partition date and the rendered body encrypted with the field cipher. The jobs table never holds the phone or an OTP in plain text.
+- **Idempotency of `plan.sms.send`:** a row lock plus `status = 'queued'` instead of `processed_events`; a duplicate or retried job after a successful send is a no-op.
+- **Attempts:** OTP and guardian OTP get priority 100 and 3 attempts (a code expires in 5 minutes); other purposes get priority 0 and 8 attempts.
+- **Dead jobs:** NFR gained `DeadLetterAware(run, on_dead)`. When a job goes dead the worker calls `on_dead` in a new transaction; for SMS it marks the message `failed` with the last error. A failing hook is logged and never blocks dead-lettering.
+- **Templates:** `{placeholder}` rendering; `int` params become Bangla digits for `bn`, strings (OTP codes) stay ASCII so autofill works. Segments follow GSM 03.38 (160/153 for GSM-7, extension characters count twice; 70/67 UTF-16 units otherwise). The seeded OTP bodies are 2 segments in Bangla and 1 in English, with no links. A message over 10 segments is refused. Template bodies are cached in-process for 60 s.
+- **HTTP gateway:** generic `POST SMS_API_URL` with a bearer key and `{to, sender_id, message}`; the vendor mapping waits for the vendor choice. Calls go through the `sms_gateway` circuit breaker; errors never include the phone or body. The fake gateway logs the body only when `APP_ENV` is local or test.
+- **Template channels:** the `notify.templates.channel` CHECK is `sms`, `push`, `inbox` per 01.
+
 ### Telemetry
 - **No exporter:** `core/telemetry.py` installs SDK tracer and meter providers without an exporter. The OTLP exporter package comes with the deployment work (19).
 - **Coverage setting:** coverage now runs with `concurrency = ["thread", "greenlet"]`; without it, lines after SQLAlchemy async awaits reached through the ASGI app are not counted.
@@ -73,6 +85,8 @@ is still pending (00 A.5); the plan's defaults are used.
   - The public `GET /v1/config/client` route is rate-limited on the `read` tier, keyed by client IP.
 
 ### Spec inconsistencies found (to resolve with the spec owner)
+- **SMS revision name:** 05 names the SMS migration `b01_11` while 03 gives `b01_11` to COM and `b01_12` to SMS; 05's names are used (SMS `b01_11`, COM `b01_12`).
+- **SMS status:** 01 has no `fake_sent` status, but 05's risk table relies on it.
 - **OTP purpose:** the CHECK on otp purpose needs `step_up`.
 - **Permission codes:** `moderation`, `privacy` and `curriculum` fail the permission-code regex.
 - **Profile class level:** `admission`/`job` values conflict with the CHECK on 6–12.

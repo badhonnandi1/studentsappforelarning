@@ -51,7 +51,12 @@ async def test_maintain_creates_drops_and_grants(session: AsyncSession) -> None:
 
 async def test_default_list_skips_missing_tables(session: AsyncSession) -> None:
     report = await pm.maintain(session, datetime.now(UTC).date())
-    assert set(report) == {"platform.outbox", "platform.processed_events", "ops.audit_log"}
+    assert set(report) == {
+        "platform.outbox",
+        "platform.processed_events",
+        "ops.audit_log",
+        "notify.sms_messages",
+    }
     assert report["ops.audit_log"]["dropped"] == 0  # never dropped by maintenance (D4)
 
 

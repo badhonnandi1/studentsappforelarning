@@ -22,3 +22,19 @@ class JobContext:
 
 
 JobHandler = Callable[[JobContext, dict[str, Any]], Awaitable[None]]
+DeadJobHook = Callable[[AsyncSession, dict[str, Any], str], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class DeadLetterAware:
+    """A handler with a hook the worker calls, in a new transaction, when the job goes dead.
+
+    The failing attempt's own transaction has rolled back, so this is where a handler records
+    the final outcome (for example an SMS marked ``failed``).
+    """
+
+    run: JobHandler
+    on_dead: DeadJobHook
+
+    async def __call__(self, ctx: JobContext, payload: dict[str, Any]) -> None:
+        await self.run(ctx, payload)

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.modules.nfr.contracts.events import EventEnvelope, register_payload
-from app.modules.nfr.contracts.jobs import JobContext, JobHandler
+from app.modules.nfr.contracts.jobs import DeadLetterAware, JobContext, JobHandler
 from app.modules.nfr.internal.services.consumer import consumer
 from app.modules.nfr.internal.services.enqueue import enqueue
 from app.modules.nfr.internal.services.idempotency import Idem, idempotent
@@ -39,6 +39,7 @@ SCHEMA = "platform"
 __all__ = [
     "CODE",
     "SCHEMA",
+    "DeadLetterAware",
     "EventEnvelope",
     "Idem",
     "JobContext",

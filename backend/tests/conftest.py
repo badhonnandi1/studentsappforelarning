@@ -14,11 +14,16 @@ from tests.support.keys import SECRET_VARS, install_test_keys
 
 install_test_keys(os.environ)
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+)
 
 from app.core.redis import use_client
 from tests.support import db as test_db
@@ -59,6 +64,20 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         finally:
             await db_session.close()
             await outer.rollback()
+
+
+@pytest.fixture
+def sessions(session: AsyncSession) -> Callable[[], AsyncSession]:
+    """New sessions on the same rolled-back connection; each ``begin()`` is a SAVEPOINT."""
+    connection = session.bind
+    assert isinstance(connection, AsyncConnection)
+
+    def factory() -> AsyncSession:
+        return AsyncSession(
+            bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False
+        )
+
+    return factory
 
 
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://127.0.0.1:56379")

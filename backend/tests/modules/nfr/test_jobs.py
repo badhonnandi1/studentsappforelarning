@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import FrozenClock
-from app.modules.nfr import JobContext, enqueue
+from app.modules.nfr import DeadLetterAware, JobContext, enqueue
 from app.modules.nfr.internal.models import DeadJob, Job
 from app.modules.nfr.internal.repositories import jobs as repo
 from app.modules.nfr.internal.services.runner import Worker, WorkerConfig
@@ -108,6 +108,30 @@ async def test_exhausted_attempts_and_unknown_kind_dead_letter(
     assert dead.attempts == 1
     assert "no handler registered" in dead.last_error
     assert await count(session, Job) == 0
+
+
+async def test_dead_hook_runs_in_its_own_transaction(
+    session: AsyncSession, sessions: Factory, clock: FrozenClock
+) -> None:
+    seen: list[tuple[dict[str, Any], str]] = []
+
+    async def fails(_ctx: JobContext, _payload: dict[str, Any]) -> None:
+        raise RuntimeError("gateway down")
+
+    async def on_dead(hook_session: AsyncSession, payload: dict[str, Any], error: str) -> None:
+        assert hook_session.in_transaction()
+        seen.append((payload, error))
+
+    async def broken_hook(_s: AsyncSession, _p: dict[str, Any], _e: str) -> None:
+        raise LookupError("hook bug")
+
+    handlers = {"x.a": DeadLetterAware(fails, on_dead), "x.b": DeadLetterAware(fails, broken_hook)}
+    await enqueue(session, "x.a", {"n": 1}, now=clock.now(), max_attempts=1)
+    await enqueue(session, "x.b", {"n": 2}, now=clock.now(), max_attempts=1)
+    w = worker(sessions, clock, handlers)
+    assert await w.run_once() + await w.run_once() == 2
+    assert seen == [({"n": 1}, "RuntimeError: gateway down")]
+    assert await count(session, DeadJob) == 2  # a failing hook never blocks dead-lettering
 
 
 async def test_lease_recovery(session: AsyncSession, sessions: Factory, clock: FrozenClock) -> None:

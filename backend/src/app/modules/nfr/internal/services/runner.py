@@ -122,8 +122,19 @@ class Worker:
         if dead:
             counter("app_jobs_dead_total").add(1, {"kind": job.kind})
             log.error("job_dead", kind=job.kind, job_id=str(job.id), attempts=job.attempts)
+            await self._on_dead(job, error)
         else:
             log.warning("job_retry", kind=job.kind, job_id=str(job.id), attempt=job.attempts)
+
+    async def _on_dead(self, job: Job, error: str) -> None:
+        hook = getattr(self.handlers.get(job.kind), "on_dead", None)
+        if hook is None:
+            return
+        try:
+            async with self.sessions() as session, session.begin():
+                await hook(session, job.payload, error)
+        except Exception:
+            log.exception("job_dead_hook_failed", kind=job.kind, job_id=str(job.id))
 
     async def renew(self) -> int:
         if not self.in_flight:
