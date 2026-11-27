@@ -60,7 +60,7 @@ class FacebookProvider:
         return _identity(str(claims["sub"]), claims.get("email"), claims.get("name"))
 
     async def _graph(self, path: str, params: dict[str, str]) -> Any:
-        reply, _ = await fetch_json(
+        reply = await fetch_json(
             self.name, f"{self.base}/{path}", params=params, transport=self.transport
         )
         if reply.status != 200 or not isinstance(reply.body, dict):

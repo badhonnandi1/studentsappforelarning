@@ -72,3 +72,10 @@ def test_registry_builds_configured_providers(monkeypatch: pytest.MonkeyPatch) -
     assert not registry.enabled("apple")
     with pytest.raises(NotFoundError):
         registry.get("apple")
+
+
+async def test_facebook_graph_outage_is_503_with_fallback() -> None:
+    down = httpx.MockTransport(lambda _: httpx.Response(502))
+    with pytest.raises(UnavailableError) as raised:
+        await FacebookProvider("42", "s3cret", "v27.0", down).verify("EAAB" + "t" * 40, "n" * 43)
+    assert raised.value.details == {"fallback": "phone_otp"}

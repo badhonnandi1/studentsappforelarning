@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 import httpx
-import structlog
-from redis.exceptions import RedisError
 
 from app.core.errors import UnauthorizedError, UnavailableError
-from app.core.http_client import make_http_client
-from app.core.redis import get_redis
-from app.core.resilience import CircuitBreaker, CircuitOpenError
-
-log = structlog.get_logger(__name__)
-TIMEOUT_S = 3.0
+from app.core.security import jwks
 
 
 @dataclass(frozen=True)
@@ -50,41 +42,21 @@ def unavailable(provider: str) -> UnavailableError:
     )
 
 
-@dataclass(frozen=True)
-class Reply:
-    status: int
-    body: Any
-
-
 async def fetch_json(
     provider: str,
     url: str,
     *,
     params: dict[str, str] | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
-) -> tuple[Reply, httpx.Headers]:
-    """GET through the provider's circuit breaker. Only transport errors and 5xx count as
-    failures; a 4xx is the token's fault and comes back as a ``Reply``."""
-
-    async def call() -> tuple[Reply, httpx.Headers]:
-        async with make_http_client(timeout_s=TIMEOUT_S, transport=transport) as client:
-            response = await client.get(url, params=params)
-        if response.status_code >= 500:
-            raise httpx.HTTPStatusError(
-                "provider error", request=response.request, response=response
-            )
-        try:
-            body = response.json()
-        except ValueError:
-            body = None
-        return Reply(response.status_code, body), response.headers
-
-    return await guarded(provider, call)
-
-
-async def guarded[T](provider: str, fn: Callable[[], Awaitable[T]]) -> T:
+) -> jwks.Reply:
+    """GET through the provider's circuit breaker; a 4xx is the token's fault."""
     try:
-        return await CircuitBreaker(f"social_{provider}", get_redis()).call(fn)
-    except (httpx.HTTPError, CircuitOpenError, RedisError, OSError) as exc:
-        log.warning("social_provider_unavailable", provider=provider, error=type(exc).__name__)
+        return await jwks.request_json(
+            breaker(provider), "GET", url, params=params, transport=transport
+        )
+    except jwks.IdpUnavailableError as exc:
         raise unavailable(provider) from exc
+
+
+def breaker(provider: str) -> str:
+    return f"social_{provider}"

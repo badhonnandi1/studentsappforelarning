@@ -10,7 +10,7 @@ import pytest
 from redis.asyncio import Redis
 
 from app.core.errors import UnavailableError
-from app.modules.auth.internal.providers import jwks as jwks_mod
+from app.core.security import jwks as jwks_mod
 from app.modules.auth.internal.providers.base import ProviderError
 from app.modules.auth.internal.providers.facebook import FacebookProvider, appsecret_proof
 from app.modules.auth.internal.providers.google import GoogleProvider

@@ -20,6 +20,7 @@ def routers() -> list[Any]:
     from app.modules.auth.internal.routes.profile import router as profile_router
     from app.modules.auth.internal.routes.reference import documents_router
     from app.modules.auth.internal.routes.reference import router as reference_router
+    from app.modules.auth.internal.routes.staff_sso import router as staff_sso_router
 
     return [
         auth_router,
@@ -27,6 +28,7 @@ def routers() -> list[Any]:
         me_router,
         me_security_router,
         meta_router,
+        staff_sso_router,
         profile_router,
         reference_router,
         documents_router,

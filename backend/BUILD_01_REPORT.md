@@ -17,7 +17,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
 | 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo; privacy, guardian consent, consent documents, stale-session purge | done |
 | 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | done |
-| 10a–13 | Staff SSO, COM, seeds, hardening | pending |
+| 10a | Staff SSO (R-07): OIDC client, start/callback, admin-audience checks | done |
+| 11–13 | COM, seeds, hardening | pending |
 
 ## Deviations
 
@@ -287,6 +288,38 @@ is still pending (00 A.5); the plan's defaults are used.
 - **Status:** `GET /v1/auth/social/facebook/deletion-status/{code}` returns `received` (for `open`, `in_progress` or `rejected`) or `completed`, with `completed_at`.
 - **Deauthorise:** unlinks the identity (`deauthorized`), writes the audit row `auth.identity.deauthorize`, and returns `{}`.
 - **New setting `PUBLIC_API_URL`:** the base of the status URL given to Meta. It must be https when Facebook is enabled in prod or staging.
+
+### Staff SSO (AUTH, step 10a)
+- **Shared JWKS verifier:** the JWKS cache, the ID-token checks and the circuit-broken HTTP call moved from `auth/internal/providers/jwks.py` to `core/security/jwks.py`, so that the core OIDC client can share them.
+  - Core raises `InvalidTokenError` and `IdpUnavailableError`.
+  - The provider module is now a thin adapter that maps them to `401 invalid_provider_token` or to `503` with the phone-OTP fallback. Behaviour, cache keys and breaker names (`social_{provider}`) are unchanged.
+- **`core/security/oidc.py`:**
+  - Authorisation code flow with PKCE S256, `state` and `nonce`. The client authenticates at the token endpoint with `client_secret_post`.
+  - The discovery document is cached in Redis for 1 h, and its `issuer` must match exactly.
+  - For an ID token with several audiences, `azp` must equal our client id.
+  - The access and refresh tokens the IdP returns are discarded.
+- **`/v1/admin/auth/sso/start?redirect_uri`:**
+  - The redirect URI must exactly match an entry in `STAFF_OIDC_REDIRECT_URIS`; otherwise `400`.
+  - `{nonce, code_verifier, redirect_uri}` is stored in Redis for 10 min under the SHA-256 of a random 32-byte state.
+  - Returns `302` with `Cache-Control: no-store`.
+  - If Redis or the IdP is down, it returns `503`. If no client id is configured, it returns `404`.
+- **`/v1/admin/auth/sso/callback?code&state`:**
+  - The admin web app receives the IdP redirect and forwards `code` and `state`. The state is taken once (`GETDEL`); an unknown or reused state is `400`.
+  - The checks run in this order:
+    1. An MFA method in `amr` (`mfa`, `otp`, `hwk`, `swk`); otherwise `403 mfa_required`.
+    2. `email_verified = true`, an email domain in `STAFF_OIDC_ALLOWED_DOMAINS` (case-insensitive) and, when present, `hd` equal to that domain; otherwise `403 forbidden`.
+    3. An existing user whose `email_hash` matches, with a verified email and an active staff role; otherwise `403 forbidden`.
+  - A failed code exchange or a bad ID token is `401 invalid_provider_token`. An unreachable IdP is `503`.
+  - The response is an admin `TokenPair` (`aud=admin`, `sso=true`, `amr=["mfa"]`, a 12 h refresh that does not slide).
+  - Audit: `auth.staff_sign_in` (actor kind `staff`), recording the IdP's `amr`, the domain and the staff roles. The email is not recorded.
+- **Device:** the callback uses the `X-Device-Id` header when sent. Otherwise each sign-in opens its own admin session (`sso-<uuid7>`, platform `web`).
+- **Admin-audience test:** a table-driven test lists every `/v1/admin/*` operation from the OpenAPI schema (except the two SSO routes). Each one must reject a user token (`401`) and admin tokens without `sso` or without an MFA `amr` (`403`).
+- **Deferred:** the "seed_dev tokens refused when `APP_ENV=prod`" check is tested with `scripts/seed_dev.py` in step 12. The settings validator already refuses `DEV_STAFF_TOKENS` in prod and staging.
+- **Risk (needs a decision before staff use):** Google's ID tokens normally carry no `amr` claim, even when 2-Step Verification is enforced for the Workspace. With the default issuer, the `amr` rule as specified would refuse every staff sign-in. Options:
+  - an IdP or broker that emits `amr` (for example Okta, Entra ID or Keycloak in front of Workspace);
+  - a documented exception that trusts Workspace-enforced 2SV for the allowed domains.
+
+  The code follows the spec (MFA `amr` required); nothing was relaxed.
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
