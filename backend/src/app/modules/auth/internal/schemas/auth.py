@@ -65,6 +65,7 @@ class TokenPair(BaseModel):
 class SignInOut(TokenPair):
     linked: bool = False
     created: bool = False
+    restricted_until: datetime | None = None
 
 
 class NeedsProfileOut(BaseModel):

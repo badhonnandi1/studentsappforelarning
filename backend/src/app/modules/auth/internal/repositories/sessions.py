@@ -37,6 +37,14 @@ async def live_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[Devic
     return list((await session.execute(stmt)).scalars())
 
 
+async def device_seen(session: AsyncSession, user_id: uuid.UUID, device_id: str) -> bool:
+    """Any session for this device, live or revoked (sessions are never deleted)."""
+    stmt = select(DeviceSession.id).where(
+        DeviceSession.user_id == user_id, DeviceSession.device_id == device_id
+    )
+    return (await session.execute(stmt.limit(1))).first() is not None
+
+
 async def get(
     session: AsyncSession, session_id: uuid.UUID, *, lock: bool = False
 ) -> DeviceSession | None:

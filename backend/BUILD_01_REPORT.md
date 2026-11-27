@@ -241,6 +241,37 @@ is still pending (00 A.5); the plan's defaults are used.
   - A verified Google email is stored on the new user (encrypted, keyed hash, `email_verified_at`) unless another account already has that email; it is never moved.
   - The identity's email, if any, is stored encrypted with its keyed hash. Unlinked identity rows are reused on relink, because `(provider, provider_subject)` stays unique after unlinking.
 
+### Step-up, dormant rule, linked identities and phone change (AUTH, step 10 part 2)
+- **Step-up OTP (R-25):**
+  - **Our addition:** `POST /v1/auth/step-up/send {action}` sends the OTP to the account's verified phone. It returns 202 with a challenge and applies the T-otp limits. The spec defines only the verify call and does not say how the code is requested.
+  - A challenge belongs to the caller when its phone hash equals the caller's (numbers are unique), so no Redis binding is needed.
+  - `POST /v1/auth/step-up` returns a token valid for 10 minutes. It is bound to the user, the session and the action, and stored in Redis only as its SHA-256 (`auth:step_up:{hash}`).
+  - The token is **single use**: it is deleted after the action commits. A missing, wrong-action, other-session or spent token gives `403 step_up_required`. Redis down gives `503`.
+  - An account with no phone gets `403 phone_required`, both for the send call and for unlink.
+- **Dormant and new-device rule (R-25):**
+  - It applies to phone OTP sign-in when the account's `last_seen_at` is more than 180 days ago and the `device_id` has never had a session for the account (sessions are never deleted).
+  - With a linked Google or Facebook identity, OTP verify returns `200 {status: "second_factor_required", providers}` and starts no session. The OTP is spent, and the client signs in with the provider.
+  - Without one, the session starts with `device_sessions.restricted_until = now + 72 h`, and `SignInOut.restricted_until` reports it.
+  - A restricted session gets `403 restricted_session` for unlink and phone change. Payments (B3+) must check it too; the check is `step_up.ensure_unrestricted`.
+  - Signing in again on the same device does not clear the restriction.
+- **Linking:**
+  - `POST /v1/me/identities/{provider}` verifies the token and nonce like sign-in.
+  - It returns `409 identity_in_use` if another account holds the identity, `409 conflict` if the caller already has that provider, and `403 age_restricted` for Facebook under 13.
+  - It writes the audit row `auth.identity.link`. A previously unlinked row for the same subject is reused.
+- **Unlinking:**
+  - The checks run in this order: phone required, unrestricted session, step-up token (`unlink`), `404` if the provider is not linked, then the last-method guard.
+  - Because a verified phone is required, the last-method guard (`409 last_sign_in_method`) cannot trigger in B1. It is kept for B8 passwords.
+  - The row is kept with `unlinked_at` and `unlink_reason = user`, and the audit row is `auth.identity.unlink`.
+  - `GET /v1/me/identities` masks emails as `k***@domain`.
+- **Phone change (`POST /v1/me/phone`):**
+  - Step 1 `{phone}` needs a step-up token (`phone_change`) and an unrestricted session. **Deviation:** an account adding its first number needs no step-up, because there is no number to confirm with.
+  - A number held by another account gives `409 conflict` (support merges by hand). Your own number gives `422 same_phone`.
+  - The OTP (`purpose = phone_change`) goes to the new number. The challenge is bound to the caller in Redis (`auth:phone_change:{challenge_id}`, holding the user id only), and the step-up token is spent.
+  - Step 2 `{challenge_id, code}` re-checks the number, stores it encrypted with its keyed hash, and writes the audit row `auth.phone.change`, in one transaction.
+  - Other sessions are not revoked on a phone change (the spec does not ask for it; see Proposed additions).
+- **Deletion step-up:** the `deletion` and `guardian_change` actions are accepted, but B1 has no user deletion-request or guardian-change route (§D lists none). The 05 test line "deletion without `X-Step-Up-Token` → 403" therefore waits for the build that adds the route.
+- **Module layout:** the dormant rule is in `services/dormant.py`, not `step_up.py` as 05 §B lists, to avoid an import cycle with `otp_verify`.
+
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
 - **`fake_sent` status:** added to the `sms_messages.status` CHECK (01 lists queued/sent/delivered/failed; 05's risk table names `fake_sent`). Numbers in the reserved test block (`+8801700000000`–`+8801700009999`) never reach a gateway; they are stored as `fake_sent` with provider `test_block`.
@@ -276,4 +307,4 @@ is still pending (00 A.5); the plan's defaults are used.
 - **HIBP:** HIBP fail-open is a B8 item.
 
 ## Proposed additions
-None so far.
+- Revoke the account's other sessions after a phone change (SIM-swap hardening). Not done in B1.

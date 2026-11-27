@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError
 from app.core.ids import uuid7
-from app.core.security.crypto import encrypt_field
+from app.core.security.crypto import decrypt_field, encrypt_field
 from app.core.security.hashing import keyed_hash
 from app.modules import nfr
 from app.modules.auth.internal.models import ExternalIdentity, User
@@ -26,6 +26,11 @@ USER_PHONE_CONTEXT = "identity.users.phone"
 USER_EMAIL_CONTEXT = "identity.users.email"
 IDENTITY_EMAIL_CONTEXT = "identity.external_identities.email"
 FACEBOOK_MIN_AGE = 13
+
+
+def phone_of(user: User) -> str:
+    """Only for an account with a phone (check ``phone_hash`` first)."""
+    return decrypt_field(user.phone_enc or b"", USER_PHONE_CONTEXT)
 
 
 def age_gate(provider: str, dob: date | None, now: datetime) -> None:

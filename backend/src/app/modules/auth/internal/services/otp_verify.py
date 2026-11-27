@@ -20,7 +20,8 @@ from app.modules.auth.internal.models import OtpChallenge
 from app.modules.auth.internal.repositories import otp as repo
 from app.modules.auth.internal.repositories import users as users_repo
 from app.modules.auth.internal.schemas.auth import NeedsProfileOut, OtpVerifyIn, SignInOut
-from app.modules.auth.internal.services import pending_signup, sign_in
+from app.modules.auth.internal.schemas.step_up import SecondFactorOut
+from app.modules.auth.internal.services import dormant, pending_signup, sign_in
 from app.modules.auth.internal.services.otp_send import PHONE_CONTEXT
 
 MAX_ATTEMPTS = 5
@@ -65,9 +66,9 @@ def phone_of(row: OtpChallenge) -> str:
 
 async def verify_sign_in(
     session: AsyncSession, body: OtpVerifyIn, *, ip: str, now: datetime
-) -> SignInOut | NeedsProfileOut:
+) -> SignInOut | NeedsProfileOut | SecondFactorOut:
     started: sign_in.Started | None = None
-    result: SignInOut | NeedsProfileOut | None = None
+    result: SignInOut | NeedsProfileOut | SecondFactorOut | None = None
     async with session.begin():
         outcome = await consume(session, body.challenge_id, body.code, "sign_in", now)
         if not isinstance(outcome, WrongCode):
@@ -76,10 +77,15 @@ async def verify_sign_in(
                 token = await pending_signup.create_for_phone(phone_of(outcome), body.device)
                 result = NeedsProfileOut(pending_signup_token=token)
             else:
-                started = await sign_in.start_session(
-                    session, user, "otp", body.device, ip=ip, now=now
-                )
-                result = SignInOut(**started.pair.model_dump())
+                sign_in.check_status(user)
+                gate = await dormant.dormant_gate(session, user, body.device.device_id, now)
+                if isinstance(gate, SecondFactorOut):
+                    result = gate  # the OTP is spent; nothing else starts
+                else:
+                    started = await sign_in.start_session(
+                        session, user, "otp", body.device, ip=ip, now=now, restricted_until=gate
+                    )
+                    result = SignInOut(**started.pair.model_dump(), restricted_until=gate)
     if isinstance(outcome, WrongCode):
         raise outcome.error()
     if started is not None:

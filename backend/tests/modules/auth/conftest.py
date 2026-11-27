@@ -23,6 +23,7 @@ from app.modules.nfr.internal.services import runtime_config
 from app.modules.plan.internal import providers
 from app.modules.plan.internal.providers.sms_fake import FakeSmsGateway
 from app.modules.plan.internal.services import templates
+from tests.support import social
 from tests.support.tokens import ensure_keys
 
 UPLOADS = "sp-test-uploads"
@@ -57,6 +58,11 @@ def fresh_runtime_config() -> Iterator[None]:
     runtime_config._cache = None
     yield
     runtime_config._cache = None
+
+
+@pytest.fixture
+def fakes(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, social.FakeProvider]]:
+    yield from social.install(monkeypatch)
 
 
 @pytest.fixture

@@ -84,11 +84,14 @@ async def start_session(
     now: datetime,
     audience: str = "api",
     created: bool = False,
+    restricted_until: datetime | None = None,
 ) -> Started:
     check_status(user)
     ds, evicted = await _device_session(
         session, user, method, device, audience=audience, ip=ip, now=now
     )
+    if restricted_until is not None:  # R-25; a later sign-in on the device keeps it
+        ds.restricted_until = restricted_until
     roles = await users_repo.active_roles(session, user.id)
     issued = await tokens.issue(session, ds, roles, now)
     users_repo.touch(user, now)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -14,40 +14,11 @@ from app.core.security.crypto import encrypt_field
 from app.core.security.hashing import keyed_hash
 from app.core.settings import get_settings
 from app.modules.auth.internal.models import ExternalIdentity, User
-from app.modules.auth.internal.providers import registry
-from app.modules.auth.internal.providers.base import ProviderError, VerifiedIdentity
 from app.modules.ops.internal.models import AuditLog
 from tests.modules.auth.conftest import DEVICE
 from tests.support.users import make_user
 
 pytestmark = [pytest.mark.api, pytest.mark.db]
-GOOGLE = VerifiedIdentity("google", "g-1", "kid@example.com", True, "Kid One")
-FACEBOOK = VerifiedIdentity("facebook", "fb-1", "kid@example.com", False, "Kid One")
-
-
-class FakeProvider:
-    def __init__(self, name: str) -> None:
-        self.name, self.tokens = name, {}  # type: ignore[var-annotated]
-
-    async def verify(self, token: str, nonce: str) -> VerifiedIdentity:
-        del nonce
-        if token not in self.tokens:
-            raise ProviderError()
-        result: VerifiedIdentity = self.tokens[token]
-        return result
-
-
-@pytest.fixture
-def fakes(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, FakeProvider]]:
-    monkeypatch.setattr(get_settings(), "google_enabled", True)
-    monkeypatch.setattr(get_settings(), "facebook_enabled", True)
-    made = {name: FakeProvider(name) for name in ("google", "facebook")}
-    for name, fake in made.items():
-        fake.tokens[f"{name}-token-0000000000"] = GOOGLE if name == "google" else FACEBOOK
-        registry.use_provider(name, fake)
-    yield made
-    for name in made:
-        registry.use_provider(name, None)
 
 
 async def social(
@@ -191,3 +162,14 @@ async def test_suspended_account_and_kill_switch(
         user = await make_user(s, status="suspended")
         s.add(ExternalIdentity(user_id=user.id, provider="facebook", provider_subject="fb-1"))
     assert (await social(client, "facebook")).status_code == 403
+
+
+@pytest.mark.usefixtures("fakes")
+async def test_second_pending_sign_up_for_one_identity_conflicts(client: httpx.AsyncClient) -> None:
+    tokens = [(await social(client, "google")).json()["pending_signup_token"] for _ in range(2)]
+    complete = "/v1/auth/sign-up/complete"
+    body = {"date_of_birth": "2001-01-01"}
+    first = await client.post(complete, json={**body, "pending_signup_token": tokens[0]})
+    assert first.status_code == 201
+    second = await client.post(complete, json={**body, "pending_signup_token": tokens[1]})
+    assert second.status_code == 409
