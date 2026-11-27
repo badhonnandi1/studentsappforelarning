@@ -1,0 +1,134 @@
+name: backend
+
+on:
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  push:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+env:
+  UV_FROZEN: "1"
+  APP_ENV: test
+  TEST_DATABASE_URL: postgresql+asyncpg://app_migrator:app_migrator@127.0.0.1:5432/studyplatform_test
+  TEST_REDIS_URL: redis://127.0.0.1:6379/0
+  S3_ENDPOINT_URL: http://127.0.0.1:9000
+  AWS_ACCESS_KEY_ID: localdev
+  AWS_SECRET_ACCESS_KEY: localdev-secret
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with: { enable-cache: true }
+      - run: uv sync
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy src tests migrations scripts
+      - run: uv run lint-imports
+      - run: uv run python scripts/check_boundaries.py
+      - run: uv run python scripts/check_file_length.py
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: app_migrator
+          POSTGRES_PASSWORD: app_migrator
+          POSTGRES_DB: studyplatform_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app_migrator" --health-interval 2s --health-retries 30
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with: { enable-cache: true }
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=localdev -e MINIO_ROOT_PASSWORD=localdev-secret \
+            cgr.dev/chainguard/minio:latest server /data
+      - name: Create app role
+        run: |
+          PGPASSWORD=app_migrator psql -h 127.0.0.1 -U app_migrator -d studyplatform_test \
+            -c "CREATE ROLE app_rw LOGIN PASSWORD 'app_rw'"
+      - run: uv sync
+      - run: uv run alembic upgrade head
+        env: { DATABASE_MIGRATOR_URL: "${{ env.TEST_DATABASE_URL }}" }
+      - run: uv run alembic check
+        env: { DATABASE_MIGRATOR_URL: "${{ env.TEST_DATABASE_URL }}" }
+      - run: >-
+          uv run pytest -m "not load and not eval" -n auto
+          --cov --cov-report=xml --cov-report=json:coverage.json
+      - run: uv run python scripts/check_coverage_paths.py coverage.json
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: app_migrator
+          POSTGRES_PASSWORD: app_migrator
+          POSTGRES_DB: studyplatform_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app_migrator" --health-interval 2s --health-retries 30
+    env:
+      DATABASE_MIGRATOR_URL: postgresql+asyncpg://app_migrator:app_migrator@127.0.0.1:5432/studyplatform_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with: { enable-cache: true }
+      - run: PGPASSWORD=app_migrator psql -h 127.0.0.1 -U app_migrator -d studyplatform_test -c "CREATE ROLE app_rw LOGIN PASSWORD 'app_rw'"
+      - run: uv sync
+      - run: uv run alembic upgrade head
+      - run: uv run alembic downgrade -1
+      - run: uv run alembic upgrade head
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v7
+        with: { enable-cache: true }
+      - run: uv export --no-hashes --format requirements-txt > /tmp/requirements.txt
+      - run: uvx pip-audit --strict -r /tmp/requirements.txt
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: backend
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false
+          tags: studyplatform-backend:ci

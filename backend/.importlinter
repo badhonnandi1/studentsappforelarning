@@ -1,0 +1,23 @@
+[importlinter]
+root_package = app
+include_external_packages = True
+
+[importlinter:contract:layers]
+name = Layers: entrypoints > modules > core > shared
+type = layers
+layers =
+    app.entrypoints
+    app.modules
+    app.core
+    app.shared
+
+[importlinter:contract:ingest-no-postgres]
+name = Exam ingest never touches Postgres
+type = forbidden
+source_modules =
+    app.entrypoints.exam_ingest
+forbidden_modules =
+    sqlalchemy
+    asyncpg
+    alembic
+allow_indirect_imports = False

@@ -1,0 +1,56 @@
+# Local development and tests. The API runs on the host: `uv run uvicorn app.entrypoints.api.main:app`.
+# Ports are fixed for this repo so they don't collide with other local projects.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: app_migrator
+      POSTGRES_PASSWORD: app_migrator
+      POSTGRES_DB: studyplatform
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pg:/var/lib/postgresql/data
+      - ./scripts/init_local_db.sql:/docker-entrypoint-initdb.d/init_local_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_migrator -d studyplatform"]
+      interval: 2s
+      retries: 30
+
+  pgbouncer:
+    profiles: ["pool"]
+    image: edoburu/pgbouncer:v1.24.1-p1
+    environment:
+      DATABASE_URL: postgres://app_rw:app_rw@postgres:5432/studyplatform
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_PREPARED_STATEMENTS: "200"
+    ports:
+      - "127.0.0.1:56432:5432"
+    depends_on: [postgres]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--databases", "64"]
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  # S3-compatible object store for uploads and the Parquet event log (stands in for AWS S3 locally).
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: localdev
+      MINIO_ROOT_PASSWORD: localdev-secret
+    ports:
+      - "127.0.0.1:59000:9000"
+    volumes:
+      - s3:/data
+
+volumes:
+  pg:
+  s3:

@@ -85,6 +85,8 @@ Each row says what is inconsistent, what it would cost if it were coded as writt
 | S-8 | Open v2 decisions D1–D9 remain open; this plan builds on their defaults | v2 §10 defaults |
 | S-9 – S-12 | Added by the independent review; see Part B | |
 
+**Approval status (2026-11-27).** Supervisor sign-off on S-1 – S-12 is **still pending**. Build 1 was started on the user's instruction on 2026-11-27, using the defaults in the table above. Any decision the supervisor later changes is applied as a follow-up change to Build 1.
+
 ---
 
 # Part B: Independent review of this plan

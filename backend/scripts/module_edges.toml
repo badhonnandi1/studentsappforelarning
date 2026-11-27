@@ -1,0 +1,27 @@
+# Allowed dependencies between module public APIs (04 §5). Arrows point to what a module uses.
+# A new edge is reviewed like code; check_boundaries.py fails on a missing edge or a cycle.
+
+[edges]
+ops = ["nfr"]
+plan = ["nfr", "ops"]
+com = ["ops", "nfr"]
+tax = ["ops"]
+auth = ["ops", "com", "plan", "tax", "nfr"]
+qb = ["tax"]
+cms = ["qb"]
+pay = ["tax", "plan"]
+gam = ["ops"]
+anl = ["tax", "exam"]
+prac = ["qb", "pay", "anl", "gam", "cms"]
+exam = ["qb", "pay", "plan", "auth"]
+ai = ["qb", "prac", "pay", "exam", "par"]
+inst = ["ai", "qb", "exam", "pay", "auth"]
+par = ["anl", "auth", "plan"]
+
+# Modules inside internal/ (besides routes/ and schemas/) that may import fastapi because they
+# define FastAPI dependencies.
+[fastapi_allowed]
+modules = [
+    "app.modules.auth.internal.services.actor",
+    "app.modules.nfr.internal.services.idempotency",
+]
