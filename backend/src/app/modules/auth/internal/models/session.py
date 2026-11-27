@@ -33,6 +33,7 @@ REVOKE_REASONS = (
     "exam_takeover",
     "account_deleted",
     "session_limit",
+    "inactive",
 )
 LIVE = text("revoked_at IS NULL")
 TSTZ = DateTime(timezone=True)

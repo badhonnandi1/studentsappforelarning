@@ -7,7 +7,7 @@ from typing import Any
 CODE = "AUTH"
 SCHEMA = "identity"
 
-__all__ = ["CODE", "SCHEMA", "routers", "startup"]
+__all__ = ["CODE", "SCHEMA", "job_handlers", "periodic_jobs", "routers", "startup"]
 
 
 def routers() -> list[Any]:
@@ -15,9 +15,17 @@ def routers() -> list[Any]:
     from app.modules.auth.internal.routes.auth import router as auth_router
     from app.modules.auth.internal.routes.me import router as me_router
     from app.modules.auth.internal.routes.profile import router as profile_router
+    from app.modules.auth.internal.routes.reference import documents_router
     from app.modules.auth.internal.routes.reference import router as reference_router
 
-    return [auth_router, me_router, profile_router, reference_router, admin_roles_router]
+    return [
+        auth_router,
+        me_router,
+        profile_router,
+        reference_router,
+        documents_router,
+        admin_roles_router,
+    ]
 
 
 def startup() -> None:
@@ -27,3 +35,15 @@ def startup() -> None:
     from app.modules.auth.internal.services.rbac import make_grants_loader
 
     set_grants_loader(make_grants_loader(lambda: sessionmaker()()))
+
+
+def job_handlers() -> dict[str, Any]:
+    from app.modules.auth.internal.jobs import cleanup
+
+    return {cleanup.KIND: cleanup.handle}
+
+
+def periodic_jobs() -> list[Any]:
+    from app.modules.auth.internal.jobs import cleanup
+
+    return [cleanup.PERIODIC]

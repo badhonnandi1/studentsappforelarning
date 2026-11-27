@@ -42,6 +42,10 @@ PERIODIC: list[Periodic] = [
 ]
 
 
+def periodic_kinds() -> list[str]:
+    return [p.kind for p in PERIODIC]
+
+
 def register_periodic(job: Periodic) -> None:
     if any(p.kind == job.kind for p in PERIODIC):
         raise ValueError(f"periodic job {job.kind} registered twice")

@@ -1,9 +1,9 @@
-"""Public reference lists: districts with upazilas, institution search (05 §D)."""
+"""Public reference lists: districts, institution search, consent documents (05 §D)."""
 
 from collections.abc import Mapping
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
@@ -11,14 +11,17 @@ from app.core.errors import ValidationAppError
 from app.core.pagination import Page
 from app.core.ratelimit import client_ip, rate_limit
 from app.modules.auth.internal.repositories import profiles as repo
+from app.modules.auth.internal.schemas.consent import ConsentDocumentOut, Lang
 from app.modules.auth.internal.schemas.profile import (
     DistrictOut,
     DistrictsOut,
     InstitutionOut,
     UpazilaOut,
 )
+from app.modules.auth.internal.services import consent
 
 router = APIRouter(prefix="/v1/reference", tags=["reference"])
+documents_router = APIRouter(prefix="/v1/consent-documents", tags=["reference"])
 Session = Annotated[AsyncSession, Depends(get_session)]
 DAY_S = 86_400
 MAX_RESULTS = 50
@@ -62,3 +65,15 @@ async def institutions(
     rows = await repo.search_institutions(session, q.strip() if q else None, district_id, limit)
     await session.commit()
     return Page(items=[InstitutionOut.model_validate(r) for r in rows], next_cursor=None)
+
+
+@documents_router.get("/{version}", response_model=ConsentDocumentOut, dependencies=ReadTier)
+async def consent_document(
+    response: Response,
+    session: Session,
+    version: Annotated[str, Path(pattern=r"^[0-9a-z-]{1,40}$")],
+    lang: Lang = "bn",
+) -> ConsentDocumentOut:
+    out = await consent.get_document(session, version, lang)
+    response.headers["Cache-Control"] = f"public, max-age={DAY_S}"  # a version never changes
+    return out

@@ -60,9 +60,11 @@ def new_code(phone: str) -> str:
     return f"{secrets.randbelow(10**6):06d}"
 
 
-async def enforce_client_limits(*, ip: str, device_id: str) -> None:
+async def enforce_client_limits(*, ip: str, device_id: str | None) -> None:
     """T-otp per IP and device. Fails closed when Redis is down. Keys are hashed."""
-    keys = {"ip": keyed_hash(ip, "ip").hex(), "device": keyed_hash(device_id, "device").hex()}
+    keys = {"ip": keyed_hash(ip, "ip").hex()}
+    if device_id:
+        keys["device"] = keyed_hash(device_id, "device").hex()
     await ratelimit.enforce("otp_ip", keys)
 
 

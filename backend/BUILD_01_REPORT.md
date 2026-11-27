@@ -15,7 +15,7 @@ is still pending (00 A.5); the plan's defaults are used.
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
-| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo | in progress |
+| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo; privacy, guardian consent, consent documents, stale-session purge | done |
 | 10–13 | Social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
@@ -167,6 +167,37 @@ is still pending (00 A.5); the plan's defaults are used.
   - `core.storage.get_storage()` is a dependency, so tests can override it.
   - `summary.signed_in_user()` is shared by the `/v1/me*` services.
 - **Moved to step 10:** `POST /v1/me/phone` needs the step-up OTP (R-25), which step 10 builds.
+
+### Privacy, guardian consent and consent documents (AUTH, step 9 part 5)
+- **Consent documents:**
+  - v1 is `2026-11-v1` (`guardian_consent`, bn and en), seeded in `b01_10` with the SHA-256 of each body.
+  - The bodies are static files in `auth/internal/consent_docs/`; `tests/contract/test_consent_seed.py` checks each file against its hash.
+  - The text is a **draft placeholder, clearly marked, pending the legal decision D4**. A changed text ships as a new version in a new revision.
+  - `GET /v1/consent-documents/{version}?lang=` is public, `read` tier per IP, with `Cache-Control: public, max-age=86400`; `lang` defaults to `bn`.
+- **Guardian consent start:**
+  - T-otp per IP and per guardian number.
+  - A guardian number equal to the user's own gets `422 same_phone`.
+  - An existing active consent gets `409 consent_active`.
+  - A version other than the latest published one gets `422 consent_version_outdated`, with `details.latest`.
+  - **Our addition:** an adult (18 or over on the Dhaka date) gets `409 consent_not_required`. The spec does not cover this case.
+- **Binding a challenge to its user:** `otp_challenges` has no user column, so start keeps `{user_id, relation, version}` in Redis under `auth:guardian:{challenge_id}`, for the code's lifetime plus 10 minutes. It holds no phone. If Redis is down, start and confirm return `503`.
+- **Guardian consent confirm:**
+  - The binding must exist and belong to the caller; otherwise `401 invalid_code`.
+  - The user row is locked, so two challenges cannot both record a consent.
+  - It consumes the OTP (wrong code `401`, used or expired `410`, too many attempts `429`) and inserts `guardian_consents`.
+  - The guardian phone is envelope-encrypted (context `identity.guardian_consents.guardian_phone`) and stored with its keyed hash; the relation goes in `scope`.
+  - It writes the audit row `auth.guardian_consent.record`, all in one transaction.
+  - The consent state is computed (an active, not-withdrawn row), not stored on `users`. A withdrawn consent makes `needs_consent` true again. B1 has no withdrawal route; withdrawal is done by support or B8 PAR.
+- **Privacy:**
+  - Defaults: `profile_private = true`, `leaderboard_visible = true`.
+  - Hiding oneself sets `opt_out_by = self`; showing again clears it.
+  - While `opt_out_by = guardian`, the user cannot turn `leaderboard_visible` back on (`403 forbidden`); other fields can still change.
+  - Privacy changes are not audited (they are the user's own settings).
+- **`auth.sessions.purge_stale`:**
+  - Runs daily at 03:00 Dhaka on `maintenance`.
+  - Sessions with no activity for 90 days, and their refresh tokens, are marked revoked with the new reason **`inactive`** (added to the `b01_07` CHECK and to `REVOKE_REASONS`). Nothing is deleted.
+  - It works in batches of 5000 (at most 20 per run) with `SKIP LOCKED`.
+- **Periodic jobs from modules:** a module may expose `periodic_jobs()`. The worker entrypoint registers them with the NFR scheduler (`register_periodic_jobs`), because the module-edge map does not allow the registry to import NFR.
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

@@ -83,6 +83,11 @@ def all_routers() -> list[Any]:
     return list(_collect("routers"))
 
 
+def all_periodic_jobs() -> list[Any]:
+    """Each module's ``periodic_jobs()`` (``nfr.Periodic``); the worker registers them."""
+    return list(_collect("periodic_jobs"))
+
+
 def all_job_handlers() -> dict[str, Any]:
     handlers: dict[str, Any] = {}
     for module in MODULES:

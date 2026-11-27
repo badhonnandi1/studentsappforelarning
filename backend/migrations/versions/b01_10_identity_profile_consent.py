@@ -5,6 +5,10 @@ Revises: b01_09
 
 ``profiles.class_level`` allows 13 (admission) and 14 (job) for the two non-class stages that
 05 §C.4 names; 01's CHECK stopped at 12. ``board_code`` gets its FK in B2.
+
+Seeds guardian consent v1 (bn, en). The bodies are static files in
+``app/modules/auth/internal/consent_docs``; ``tests/contract/test_consent_seed.py`` checks
+these hashes against them. A changed text ships as a new version in a new revision.
 """
 
 from __future__ import annotations
@@ -22,6 +26,11 @@ S = "identity"
 TSTZ = sa.DateTime(timezone=True)
 NOW = sa.text("now()")
 USERS = "identity.users.id"
+CONSENT_V1 = "2026-11-v1"
+CONSENT_V1_SHA256 = {
+    "bn": "39a819e7e618b5b553e4aeb4db808672acb1f7edee84937597b656184db045fe",
+    "en": "221b603994216be5500a6800adb4323c4fbdb678e67f543605dffdd37f7d5459",
+}
 VIA = "'app', 'support', 'guardian', 'facebook_callback', 'apple_notification'"
 
 
@@ -75,6 +84,22 @@ def upgrade() -> None:
         sa.CheckConstraint("kind IN ('guardian_consent', 'privacy_policy', 'terms')", name="kind"),
         schema=S,
     )
+    docs = sa.table(
+        "consent_documents",
+        sa.column("version", sa.Text),
+        sa.column("lang", sa.Text),
+        sa.column("kind", sa.Text),
+        sa.column("body_sha256", BYTEA),
+        schema=S,
+    )
+    op.bulk_insert(
+        docs,
+        [
+            {"version": CONSENT_V1, "lang": lang, "kind": "guardian_consent",
+             "body_sha256": bytes.fromhex(digest)}
+            for lang, digest in CONSENT_V1_SHA256.items()
+        ],
+    )  # fmt: skip
     op.create_table(
         "guardian_consents",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),

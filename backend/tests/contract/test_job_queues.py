@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.jobs.queues import QUEUES
+from app.entrypoints.workers.main import register_periodic_jobs
 from app.modules.nfr.internal.services.consumer import consumers
 from app.modules.nfr.internal.services.scheduler import PERIODIC
 from app.modules.registry import all_job_handlers
@@ -17,10 +18,17 @@ pytestmark = pytest.mark.contract
 
 
 def test_every_periodic_job_has_a_handler_and_a_known_queue() -> None:
-    handlers = all_job_handlers()
-    for job in PERIODIC:
-        assert job.kind in handlers, job.kind
-        assert job.queue in QUEUES, job.queue
+    saved = list(PERIODIC)
+    try:
+        register_periodic_jobs()
+        register_periodic_jobs()  # safe to call twice
+        assert "auth.sessions.purge_stale" in {job.kind for job in PERIODIC}
+        handlers = all_job_handlers()
+        for job in PERIODIC:
+            assert job.kind in handlers, job.kind
+            assert job.queue in QUEUES, job.queue
+    finally:
+        PERIODIC[:] = saved
 
 
 def test_consumers_use_known_queues() -> None:

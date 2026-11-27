@@ -19,9 +19,17 @@ from app.core.storage import Storage
 from app.entrypoints.boot import install_stop_signals
 from app.entrypoints.stack import READY_CHECKS, start_stack, stop_stack
 from app.modules import nfr
-from app.modules.registry import all_job_handlers
+from app.modules.registry import all_job_handlers, all_periodic_jobs
 
 DEFAULT_QUEUES = "sms,maintenance,default"
+
+
+def register_periodic_jobs() -> None:
+    """Add the modules' periodic jobs to the scheduler; safe to call more than once."""
+    known = set(nfr.periodic_kinds())
+    for job in all_periodic_jobs():
+        if job.kind not in known:
+            nfr.register_periodic(job)
 
 
 def parse(argv: list[str] | None) -> argparse.Namespace:
@@ -63,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"invalid configuration: {exc}\n")
         return 1
     queues = tuple(q.strip() for q in args.queues.split(",") if q.strip())
+    register_periodic_jobs()
     if args.check:
         problems = asyncio.run(check(settings, queues))
         sys.stderr.writelines(f"{p}\n" for p in problems)

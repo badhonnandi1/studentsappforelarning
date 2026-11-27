@@ -26,7 +26,8 @@ TSTZ = sa.DateTime(timezone=True)
 NOW = sa.text("now()")
 METHODS = "'otp', 'google', 'facebook', 'apple', 'password', 'sso'"
 REASONS = (
-    "'user', 'logout', 'token_reuse', 'admin', 'exam_takeover', 'account_deleted', 'session_limit'"
+    "'user', 'logout', 'token_reuse', 'admin', 'exam_takeover', 'account_deleted', "
+    "'session_limit', 'inactive'"
 )
 
 
