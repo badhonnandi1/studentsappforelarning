@@ -21,11 +21,25 @@ _REQUEST_ID_OK = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _TRACEPARENT = re.compile(r"00-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}")
 
 _request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
+_client_ip: ContextVar[str | None] = ContextVar("client_ip", default=None)
 log = structlog.get_logger("app.request")
 
 
 def current_request_id() -> str | None:
     return _request_id.get()
+
+
+def current_client_ip() -> str | None:
+    """Cloudflare's ``CF-Connecting-IP`` (the edge strips client copies), else the peer."""
+    return _client_ip.get()
+
+
+def _scope_ip(scope: Scope, headers: Headers) -> str | None:
+    forwarded = headers.get("cf-connecting-ip", "").strip()
+    if forwarded:
+        return forwarded
+    client = scope.get("client")
+    return str(client[0]) if client else None
 
 
 def _internal_error_body(request_id: str) -> bytes:
@@ -60,6 +74,7 @@ class RequestContextMiddleware:
             await send(message)
 
         token = _request_id.set(request_id)
+        ip_token = _client_ip.set(_scope_ip(scope, headers))
         begin = time.perf_counter()
         with structlog.contextvars.bound_contextvars(**bound):
             try:
@@ -80,6 +95,7 @@ class RequestContextMiddleware:
                     ms=round((time.perf_counter() - begin) * 1000, 1),
                 )
                 _request_id.reset(token)
+                _client_ip.reset(ip_token)
 
 
 async def _send_500(send: Send, request_id: str) -> None:

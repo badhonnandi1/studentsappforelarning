@@ -12,7 +12,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 3 | core.db, module registry, `b01_01`, test databases | done |
 | 4 | Redis, rate limits, resilience, storage, security, shared helpers | done |
 | 5 | NFR: queue, outbox, relay, consumers, idempotency, runtime config, partitions | done |
-| 6–13 | OPS audit, entry points, SMS, AUTH, social, staff SSO, COM, seeds, hardening | pending |
+| 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
+| 7–13 | Entry points, SMS, AUTH, social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
 
@@ -36,6 +37,19 @@ is still pending (00 A.5); the plan's defaults are used.
   - Each child partition copies the parent's `app_rw` grants.
   - `create_range_partitions(…, ahead)` creates today plus `ahead` periods.
 - **Daily template rebuild:** the test template database is rebuilt daily (today's date is part of its fingerprint), so the partitions it was migrated with stay current.
+
+### Authorization and audit
+- **Actor placement:** `Actor`, `can`/`require` and the `current_actor`/`admin_actor`/`staff_permission` dependencies live in `core/security` instead of `auth/contracts`. This follows 04 §4 R-03, so OPS stays a leaf: authorization reads token claims plus the `auth:grants:{user_id}` cache (60 s), and AUTH registers the DB loader in step 9. Without a loader there are no grants, so every check fails closed.
+- **Revocation when Redis is down:** the `revoked_sess:{sid}` check fails closed for admin tokens and fails open, with a warning, for `aud=api`. Exposure is bounded by the 15-minute access-token lifetime.
+- **Admin MFA:** admin tokens must carry `sso=true` and an `amr` containing one of `mfa`, `otp`, `hwk`, `swk`; otherwise the response is `403 mfa_required`.
+- **Pagination:** the helper is in `core/pagination.py`, not `shared/`, because `shared` sits below `core` in the layer contract and the cursor errors use `core.errors`.
+- **Audit log grants:** `app_rw` has SELECT and INSERT only (UPDATE, DELETE and TRUNCATE are revoked), and partitions inherit that. The SQL drop function refuses audit partitions younger than 36 months. Maintenance creates audit partitions 3 months ahead but never drops them; dropping waits for the B9 archive job.
+- **Audit content:**
+  - `before` and `after` store only the changed fields.
+  - Keys with phone or email in the name become `{"hash": keyed_hash}`; other sensitive keys become `"[redacted]"`.
+  - A reason is required when the action's last segment is `grant`, `refund`, `extend` or `invalidate`.
+  - `ip_hash` is the keyed hash of `CF-Connecting-IP`, or of the peer address when that header is absent.
+- **Audit search:** defaults to the last 30 days, allows at most 93 days per query, and pages by a keyset on `(occurred_at, id)`, newest first.
 
 ### Telemetry
 - **No exporter:** `core/telemetry.py` installs SDK tracer and meter providers without an exporter. The OTLP exporter package comes with the deployment work (19).

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 
 import pytest
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from app.core import ratelimit
 from app.core.clock import FrozenClock
-from app.core.redis import use_client
 from app.modules.nfr.internal.services import runtime_config
 
 NOW = datetime(2026, 1, 15, 6, 0, tzinfo=UTC)
@@ -34,15 +32,6 @@ def sessions(session: AsyncSession) -> Callable[[], AsyncSession]:
         )
 
     return factory
-
-
-@pytest.fixture
-async def app_redis(redis: Redis) -> AsyncIterator[Redis]:
-    use_client(redis)
-    try:
-        yield redis
-    finally:
-        use_client(None)
 
 
 @pytest.fixture(autouse=True)

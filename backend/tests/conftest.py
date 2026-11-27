@@ -20,6 +20,7 @@ import pytest
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
+from app.core.redis import use_client
 from tests.support import db as test_db
 
 
@@ -78,6 +79,16 @@ async def redis() -> AsyncIterator[Redis]:
     finally:
         await client.flushdb()
         await client.aclose()
+
+
+@pytest.fixture
+async def app_redis(redis: Redis) -> AsyncIterator[Redis]:
+    """The test Redis installed as the application's client."""
+    use_client(redis)
+    try:
+        yield redis
+    finally:
+        use_client(None)
 
 
 @pytest.fixture

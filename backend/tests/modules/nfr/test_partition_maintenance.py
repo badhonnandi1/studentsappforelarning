@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import FrozenClock
@@ -50,7 +51,23 @@ async def test_maintain_creates_drops_and_grants(session: AsyncSession) -> None:
 
 async def test_default_list_skips_missing_tables(session: AsyncSession) -> None:
     report = await pm.maintain(session, datetime.now(UTC).date())
-    assert set(report) == {"platform.outbox", "platform.processed_events"}
+    assert set(report) == {"platform.outbox", "platform.processed_events", "ops.audit_log"}
+    assert report["ops.audit_log"]["dropped"] == 0  # never dropped by maintenance (D4)
+
+
+async def test_audit_log_partitions_are_kept_36_months(session: AsyncSession) -> None:
+    today = datetime.now(UTC).date()
+    month = today.replace(day=1)
+    assert await exists(session, f"ops.audit_log_p{month:%Y%m}")
+    privileges = await session.execute(
+        text("SELECT has_table_privilege(:t, 'UPDATE'), has_table_privilege(:t, 'INSERT')"),
+        {"t": f"ops.audit_log_p{month:%Y%m}"},
+    )
+    assert tuple(privileges.one()) == (False, True)  # partitions inherit append-only grants
+    with pytest.raises(DBAPIError, match="kept for 36 months"):
+        await session.execute(
+            text("SELECT platform.drop_partitions_before('ops.audit_log', :c)"), {"c": today}
+        )
 
 
 def test_cutoffs() -> None:
