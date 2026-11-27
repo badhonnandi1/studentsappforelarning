@@ -1,12 +1,13 @@
 """Pending sign-up (R-24): no ``users`` row exists until the date of birth is known.
 
-The token is single use (``GETDEL``), valid 15 minutes, and bound to the verified phone (or, from
-step 10, the provider identity). The Redis value holds the phone encrypted, never in plain text.
+The token is single use (``GETDEL``), valid 15 minutes, and bound to the verified phone or the
+verified provider identity. Redis holds them encrypted, never in plain text.
 """
 
 from __future__ import annotations
 
 import base64
+import dataclasses
 import json
 import secrets
 from datetime import date, datetime
@@ -16,25 +17,34 @@ from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, GoneError, UnavailableError, ValidationAppError
-from app.core.ids import uuid7
 from app.core.redis import get_redis
 from app.core.security.crypto import decrypt_field, encrypt_field
 from app.core.security.hashing import keyed_hash
+from app.modules.auth.contracts.events import SignInMethod
 from app.modules.auth.internal.models import User
-from app.modules.auth.internal.permissions import DEFAULT_ROLE
+from app.modules.auth.internal.providers.base import VerifiedIdentity
 from app.modules.auth.internal.repositories import users as users_repo
 from app.modules.auth.internal.schemas.auth import DeviceInfo, SignUpCompleteIn, TokenPair
-from app.modules.auth.internal.services import sign_in
+from app.modules.auth.internal.services import accounts, sign_in
 from app.shared.dhaka_date import dhaka_today
 
 TTL_S = 15 * 60
 CONTEXT = "auth.pending_signup.phone"
-USER_PHONE_CONTEXT = "identity.users.phone"
+IDENTITY_CONTEXT = "auth.pending_signup.identity"
 EARLIEST_DOB = date(1900, 1, 1)
+SOCIAL: tuple[SignInMethod, ...] = ("google", "facebook")
 
 
 def key(token: str) -> str:
     return f"auth:pending_signup:{token}"
+
+
+def _seal(value: str, context: str) -> str:
+    return base64.b64encode(encrypt_field(value, context)).decode()
+
+
+def _open(blob: str, context: str) -> str:
+    return decrypt_field(base64.b64decode(blob), context)
 
 
 async def _store(data: dict[str, Any]) -> str:
@@ -47,8 +57,16 @@ async def _store(data: dict[str, Any]) -> str:
 
 
 async def create_for_phone(phone: str, device: DeviceInfo) -> str:
-    blob = base64.b64encode(encrypt_field(phone, CONTEXT)).decode()
-    return await _store({"method": "otp", "phone_enc": blob, "device": device.model_dump()})
+    return await _store(
+        {"method": "otp", "phone_enc": _seal(phone, CONTEXT), "device": device.model_dump()}
+    )
+
+
+async def create_for_identity(ident: VerifiedIdentity, device: DeviceInfo) -> str:
+    sealed = _seal(json.dumps(dataclasses.asdict(ident)), IDENTITY_CONTEXT)
+    return await _store(
+        {"method": ident.provider, "identity_enc": sealed, "device": device.model_dump()}
+    )
 
 
 async def take(token: str) -> dict[str, Any] | None:
@@ -66,31 +84,36 @@ def check_dob(dob: date, now: datetime) -> None:
         )
 
 
+async def _phone_user(
+    session: AsyncSession, data: dict[str, Any], body: SignUpCompleteIn, now: datetime
+) -> User:
+    phone = _open(data["phone_enc"], CONTEXT)
+    if await users_repo.by_phone_hash(session, keyed_hash(phone, "phone")) is not None:
+        raise ConflictError("This number already has an account; sign in instead")
+    return await accounts.create_user(
+        session, dob=body.date_of_birth, display_name=body.display_name, now=now, phone=phone
+    )
+
+
 async def complete(
     session: AsyncSession, body: SignUpCompleteIn, *, ip: str, now: datetime
 ) -> TokenPair:
     check_dob(body.date_of_birth, now)  # before the token is spent
     data = await take(body.pending_signup_token)
-    if data is None or data.get("method") != "otp":
+    method = data.get("method") if data else None
+    if data is None or (method != "otp" and method not in SOCIAL):
         raise GoneError("This sign-up has expired; start again")
-    phone = decrypt_field(base64.b64decode(data["phone_enc"]), CONTEXT)
     device = DeviceInfo.model_validate(data["device"])
-    phone_hash = keyed_hash(phone, "phone")
     async with session.begin():
-        if await users_repo.by_phone_hash(session, phone_hash) is not None:
-            raise ConflictError("This number already has an account; sign in instead")
-        user = User(
-            id=uuid7(),
-            phone_hash=phone_hash,
-            phone_enc=encrypt_field(phone, USER_PHONE_CONTEXT),
-            date_of_birth=body.date_of_birth,
-            display_name=body.display_name,
-            status="active",
-            locale="bn",
-        )
-        await users_repo.create(session, user, role=DEFAULT_ROLE)
+        if method == "otp":
+            user = await _phone_user(session, data, body, now)
+        else:
+            ident = VerifiedIdentity(**json.loads(_open(data["identity_enc"], IDENTITY_CONTEXT)))
+            user = await accounts.create_social_account(
+                session, ident, dob=body.date_of_birth, display_name=body.display_name, now=now
+            )
         started = await sign_in.start_session(
-            session, user, "otp", device, ip=ip, now=now, created=True
+            session, user, method, device, ip=ip, now=now, created=True
         )
     await sign_in.after_commit(started)
     return started.pair

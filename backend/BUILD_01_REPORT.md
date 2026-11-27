@@ -16,7 +16,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
 | 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo; privacy, guardian consent, consent documents, stale-session purge | done |
-| 10–13 | Social, staff SSO, COM, seeds, hardening | pending |
+| 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | in progress |
+| 10a–13 | Staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
 
@@ -198,6 +199,47 @@ is still pending (00 A.5); the plan's defaults are used.
   - Sessions with no activity for 90 days, and their refresh tokens, are marked revoked with the new reason **`inactive`** (added to the `b01_07` CHECK and to `REVOKE_REASONS`). Nothing is deleted.
   - It works in batches of 5000 (at most 20 per run) with `SKIP LOCKED`.
 - **Periodic jobs from modules:** a module may expose `periodic_jobs()`. The worker entrypoint registers them with the NFR scheduler (`register_periodic_jobs`), because the module-edge map does not allow the registry to import NFR.
+
+### Social sign-in (AUTH, step 10 part 1)
+- **Providers:**
+  - Each provider sits behind a `SocialProvider` protocol (`verify(token, nonce)` returns `VerifiedIdentity`).
+  - Each provider call runs through a circuit breaker (`social_google`, `social_facebook`) with a 3 s timeout.
+  - A 5xx response, a transport error, an open breaker or Redis down gives `503 unavailable` with `details.fallback = "phone_otp"`.
+  - A token that fails verification gives `401 invalid_provider_token`.
+  - A disabled provider gives `404`, both for the nonce and for sign-in.
+- **JWKS cache:**
+  - Redis `jwks:{sha256(url)[:16]}`, with the TTL taken from `Cache-Control: max-age` (clamped to 5 min–24 h; 1 h if there is none).
+  - An unknown `kid` refetches the keys at most once per 30 s (`…:refetch`), so random kids cannot make us hammer the provider.
+  - If Redis cannot be reached for the cache, each request fetches the keys itself.
+- **Google:**
+  - The ID token must be RS256 (any other `alg` is rejected).
+  - It must have `iss` ∈ {`accounts.google.com`, `https://accounts.google.com`}, `aud` among `GOOGLE_CLIENT_IDS`, and `exp`, `iat`, `sub` present.
+  - `iat` may be at most 60 s ahead, and the nonce is compared in constant time.
+  - The email is lower-cased and trimmed.
+- **Facebook:**
+  - A classic access token goes through `debug_token` with the app token. The checks are `is_valid`, `app_id` equal to ours, `user_id`, and `expires_at` (0, or in the future).
+  - Then `/me?fields=id,name,email` is called with `appsecret_proof`, and its `id` must equal `debug_token`'s `user_id`.
+  - A Limited Login (iOS) OIDC token is verified against Facebook's JWKS: `iss` `https://www.facebook.com`, `aud` = app id, plus the nonce.
+  - Facebook emails are always treated as unverified, so they are never auto-linked.
+  - **Deviation:** a classic access token cannot carry our nonce. For that path the nonce is only consumed (single use, bound to the provider), not matched against the token.
+  - Tokens and the app secret are never logged, and no provider access token is stored.
+- **Nonce:**
+  - `POST /v1/auth/social/nonce {provider}` uses the auth tier.
+  - It returns 32 random bytes (URL-safe), stored at `nonce:social:{nonce}` with the provider name for 5 minutes.
+  - Sign-in takes the nonce with `GETDEL`. An unknown, reused or other-provider nonce gives `401 invalid_nonce`. Redis down gives `503`.
+- **`POST /v1/auth/social/{provider}` (§C.5):**
+  - A date of birth, if sent, is validated before the nonce is spent.
+  - An active identity signs in: it updates `last_login_at`; suspended or deleted accounts are refused as for OTP.
+  - With no identity yet, Google with `email_verified` and an email equal to an account's verified email links to that account. This writes the audit row `auth.identity_autolinked` and sets `linked = true`.
+  - The autolink is skipped if that account already has a different active Google identity.
+  - Otherwise, with no date of birth, nothing is created and the response is `needs_profile` with a pending sign-up token. The verified identity is stored encrypted in Redis (context `auth.pending_signup.identity`), for 15 minutes, single use. `/v1/auth/sign-up/complete` now accepts these tokens as well as phone ones.
+  - Otherwise the user and the identity are created in one transaction (`created = true`).
+  - Facebook under 13 (Dhaka date) gets `403 age_restricted` before anything is created. The same check runs on sign-in for an existing account.
+- **Account creation:**
+  - Account creation now lives in one place (`services/accounts.py`), shared by phone and social sign-up.
+  - It honours **`kill.registrations`**: new accounts are refused with `503 kill_switch`, while existing users still sign in. The spec lists the key but does not say where it is enforced.
+  - A verified Google email is stored on the new user (encrypted, keyed hash, `email_verified_at`) unless another account already has that email; it is never moved.
+  - The identity's email, if any, is stored encrypted with its keyed hash. Unlinked identity rows are reused on relink, because `(provider, provider_subject)` stays unique after unlinking.
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

@@ -19,6 +19,7 @@ from app.core.settings import Settings
 from app.core.storage import Storage, get_storage
 from app.modules import auth
 from app.modules.auth.internal.providers import captcha
+from app.modules.nfr.internal.services import runtime_config
 from app.modules.plan.internal import providers
 from app.modules.plan.internal.providers.sms_fake import FakeSmsGateway
 from app.modules.plan.internal.services import templates
@@ -49,6 +50,13 @@ def fake_sms() -> Iterator[FakeSmsGateway]:
 
 def uploads_storage() -> Storage:
     return Storage(Settings(_env_file=None, s3_bucket_uploads=UPLOADS))
+
+
+@pytest.fixture(autouse=True)
+def fresh_runtime_config() -> Iterator[None]:
+    runtime_config._cache = None
+    yield
+    runtime_config._cache = None
 
 
 @pytest.fixture

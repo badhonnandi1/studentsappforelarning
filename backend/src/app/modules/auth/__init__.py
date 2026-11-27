@@ -13,6 +13,7 @@ __all__ = ["CODE", "SCHEMA", "job_handlers", "periodic_jobs", "routers", "startu
 def routers() -> list[Any]:
     from app.modules.auth.internal.routes.admin_roles import router as admin_roles_router
     from app.modules.auth.internal.routes.auth import router as auth_router
+    from app.modules.auth.internal.routes.auth_social import router as social_router
     from app.modules.auth.internal.routes.me import router as me_router
     from app.modules.auth.internal.routes.profile import router as profile_router
     from app.modules.auth.internal.routes.reference import documents_router
@@ -20,6 +21,7 @@ def routers() -> list[Any]:
 
     return [
         auth_router,
+        social_router,
         me_router,
         profile_router,
         reference_router,
