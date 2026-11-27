@@ -76,7 +76,7 @@ uv run pre-commit install
 | Risk | Mitigation |
 |---|---|
 | SMS vendor contract not ready | Fake SMS adapter (writes to `notify.sms_messages` with status `fake_sent` and logs the code in local and test only). The real adapter is behind a settings flag. |
-| Facebook app review takes weeks | Development uses test users in development mode. Production login needs only the `public_profile` and `email` permissions, which need no review **[Needs evidence: confirm in Meta App Dashboard]**. |
+| Facebook app review takes weeks | Development uses test users in development mode. Production login needs only the `public_profile` and `email` permissions. Meta lists both under "Permissions That Do Not Require Review" (checked 2026-11-27). New Consumer apps are auto-approved for Advanced Access to both, but the dashboard starts them at Standard Access, which only works for people with a role on the app. Before launch: switch both to Advanced Access, put the app in Live mode, and complete the annual Data Use Checkup. Whether Business Verification is also required for this case is still **[Needs evidence: check in the App Dashboard when the app is created]**. |
 | asyncpg prepared statements under PgBouncer | Default `statement_cache_size=0`; a staging test with PgBouncer in transaction mode is an exit criterion. |
 | Over-building infrastructure | Each mechanism is built only to the level the B1 tests exercise; for example, the relay writes Parquet, but partition-aware parallel relays wait for load evidence (B9). |
 
@@ -626,7 +626,7 @@ Handlers live in `core.errors`: `AppError` subclasses map to their status and `c
 | Database | `DATABASE_URL` (`postgresql+asyncpg://…`), `DATABASE_MIGRATOR_URL`, `DB_POOL_MODE` (direct, pgbouncer), `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_STATEMENT_TIMEOUT_MS` |
 | Redis | `REDIS_URL` |
 | Auth | `JWT_PRIVATE_KEYS` (JSON kid → PEM, from secrets), `JWT_ACTIVE_KID`, `OTP_HASH_KEY`, `PII_HASH_KEYS`, `KMS_KEY_ID`, `KMS_BACKEND` (aws, local) |
-| Social | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_IDS` (comma list: android, web, ios), `FACEBOOK_ENABLED`, `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_GRAPH_VERSION` (e.g. `v21.0` **[Needs evidence: current version]**) |
+| Social | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_IDS` (comma list: android, web, ios), `FACEBOOK_ENABLED`, `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_GRAPH_VERSION` (pinned, `v27.0`: the latest version, released 2026-11-04, no end date yet; checked 2026-11-27. Do not use `v21.0`, which Meta removes on 2027-01-21) |
 | Staff SSO (R-07) | `STAFF_OIDC_ISSUER` (default Google Workspace), `STAFF_OIDC_CLIENT_ID`, `STAFF_OIDC_CLIENT_SECRET`, `STAFF_OIDC_ALLOWED_DOMAINS`, `STAFF_OIDC_REDIRECT_URIS`; the prod validator requires all of them and refuses `DEV_STAFF_TOKENS=true` |
 | SMS | `SMS_BACKEND` (fake, http), `SMS_API_URL`, `SMS_API_KEY`, `SMS_SENDER_ID`, `TEST_PHONE_OTP` (only for `APP_ENV` test or dev, block `+8801700000000–9999`) |
 | Storage | `S3_ENDPOINT_URL` (localstack), `S3_BUCKET_UPLOADS`, `S3_BUCKET_EVENTS`, `AWS_REGION` |
