@@ -12,6 +12,12 @@ from app.modules.nfr.contracts.jobs import JobContext, JobHandler
 from app.modules.nfr.internal.services.consumer import consumer
 from app.modules.nfr.internal.services.enqueue import enqueue
 from app.modules.nfr.internal.services.idempotency import Idem, idempotent
+from app.modules.nfr.internal.services.process import (
+    RelayTarget,
+    missing_handlers,
+    run_worker_process,
+    unknown_queues,
+)
 from app.modules.nfr.internal.services.publish import make_event, publish
 from app.modules.nfr.internal.services.runtime_config import (
     get_value as get_runtime_flag,
@@ -38,6 +44,7 @@ __all__ = [
     "JobContext",
     "JobHandler",
     "Periodic",
+    "RelayTarget",
     "consumer",
     "enqueue",
     "get_runtime_flag",
@@ -45,12 +52,15 @@ __all__ = [
     "invalidate_runtime_config",
     "job_handlers",
     "make_event",
+    "missing_handlers",
     "publish",
     "register_payload",
     "register_periodic",
     "require_enabled",
     "routers",
+    "run_worker_process",
     "set_runtime_value",
+    "unknown_queues",
 ]
 
 

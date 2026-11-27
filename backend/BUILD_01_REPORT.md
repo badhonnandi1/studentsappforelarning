@@ -13,7 +13,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 4 | Redis, rate limits, resilience, storage, security, shared helpers | done |
 | 5 | NFR: queue, outbox, relay, consumers, idempotency, runtime config, partitions | done |
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
-| 7–13 | Entry points, SMS, AUTH, social, staff SSO, COM, seeds, hardening | pending |
+| 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
+| 8–13 | SMS, AUTH, social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
 
@@ -50,6 +51,13 @@ is still pending (00 A.5); the plan's defaults are used.
   - A reason is required when the action's last segment is `grant`, `refund`, `extend` or `invalidate`.
   - `ip_hash` is the keyed hash of `CF-Connecting-IP`, or of the peer address when that header is absent.
 - **Audit search:** defaults to the last 30 days, allows at most 93 days per query, and pages by a keyset on `(occurred_at, id)`, newest first.
+
+### Entry points
+- **Worker process:** `workers` runs three loops on one stop event (SIGTERM and SIGINT set it): the job worker, the outbox relay (on by default; `--no-relay` turns it off) and the periodic scheduler, which ticks every 30 s and relies on `dedupe_key`, so running several schedulers is safe. The relay uses `DATABASE_URL`; in deployment that must be the direct, non-PgBouncer URL (R-17).
+- **`--check` scope:** `workers --check` validates the settings, the queue names and that every periodic job has a handler, and pings Postgres and Redis. `exam-consumers --check` validates the settings and the SQS URL shape (`https://<host>/<account>/<queue>`); it does not call SQS.
+- **exam-consumers:** a skeleton until B5. It boots, logs and waits for SIGTERM.
+- **Shared boot code:** start-up shared by every deployable is in `entrypoints/boot.py`, which does not import the DB, so exam-ingest can use it. The DB-backed start-up for api, ai-gateway and workers is in `entrypoints/stack.py`. A subprocess test checks that the ingest app loads no SQLAlchemy, asyncpg, Alembic or `core.db`.
+- **Docker and Compose:** per-deployable Docker commands and Compose services are left to step 13; the Dockerfile still defaults to the API.
 
 ### Telemetry
 - **No exporter:** `core/telemetry.py` installs SDK tracer and meter providers without an exporter. The OTLP exporter package comes with the deployment work (19).
