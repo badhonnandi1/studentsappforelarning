@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import asyncpg
@@ -32,6 +33,8 @@ def fingerprint() -> str:
     ]
     for path in sources:
         digest.update(path.read_bytes())
+    # Migrations create partitions relative to today, so a template is rebuilt each UTC day.
+    digest.update(datetime.now(UTC).date().isoformat().encode())
     return digest.hexdigest()[:10]
 
 

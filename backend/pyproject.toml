@@ -57,7 +57,7 @@ ignore = ["E501"]
 allowed-confusables = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯", "–"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "scripts", "tests"]
+known-first-party = ["app", "migrations", "scripts", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "S107", "S311", "S603", "ARG001"]
@@ -110,6 +110,7 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = ["app"]
+concurrency = ["thread", "greenlet"]  # SQLAlchemy async runs DB calls in greenlets
 omit = ["*/entrypoints/*/main.py"]
 
 [tool.coverage.report]

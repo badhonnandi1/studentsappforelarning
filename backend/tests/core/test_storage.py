@@ -31,7 +31,7 @@ def test_object_key_is_owner_scoped() -> None:
 async def test_presigned_upload_enforces_size_and_type(storage: Storage) -> None:
     owner = uuid.uuid4()
     upload = await storage.presign_upload("profile_photo", owner, "image/png", NOW)
-    assert upload.max_bytes == 5 * 1024 * 1024
+    assert upload.max_bytes == 2 * 1024 * 1024
     async with httpx.AsyncClient() as client:
         files = {"file": ("a.png", b"\x89PNG....", "image/png")}
         ok = await client.post(upload.url, data=upload.fields, files=files)

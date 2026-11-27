@@ -29,10 +29,11 @@ class UploadPurpose:
 
 
 IMAGES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+JPEG_PNG = {"image/jpeg": "jpg", "image/png": "png"}
 PURPOSES: dict[str, UploadPurpose] = {
     p.name: p
     for p in (
-        UploadPurpose("profile_photo", IMAGES, 5 * MiB),
+        UploadPurpose("profile_photo", JPEG_PNG, 2 * MiB),
         UploadPurpose("photo_solve", IMAGES, 8 * MiB),
         UploadPurpose("submission_page", IMAGES, 10 * MiB),
         UploadPurpose(

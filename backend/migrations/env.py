@@ -8,11 +8,15 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import sys
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # revisions import migrations.helpers
 
 from app.core.db_base import Base
 from app.core.settings import get_settings
