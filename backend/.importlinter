@@ -17,6 +17,7 @@ type = forbidden
 source_modules =
     app.entrypoints.exam_ingest
 forbidden_modules =
+    app.core.db
     sqlalchemy
     asyncpg
     alembic
