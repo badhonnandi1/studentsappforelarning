@@ -1,4 +1,4 @@
-# Build 1 report (draft, finalised at step 13)
+# Build 1 report
 
 Branch `build/01-platform-identity`. One commit per §C.1 step. Supervisor sign-off on S-1 to S-12
 is still pending (00 A.5); the plan's defaults are used.
@@ -20,7 +20,26 @@ is still pending (00 A.5); the plan's defaults are used.
 | 10a | Staff SSO (R-07): OIDC client, start/callback, admin-audience checks | done |
 | 11 | COM moderation (in parts): folding, `moderate()`, terms admin, display-name checks (part 1); reports, restrictions, bans (part 2) | done |
 | 12 | Seeds and smoke: `seed_reference`, `seed_dev`, end-to-end API test | done |
-| 13 | Hardening, README, OpenAPI snapshot | pending |
+| 13 | Hardening, README, OpenAPI snapshot (part 1); acceptance tests, social sign-in race fix, deployable smoke, load script (part 2) | done |
+
+## Acceptance criteria (05 §F.1)
+
+Local results on 2026-11-28: `scripts/check.sh` green, **568 tests passed**, **99.15% branch coverage** overall, and every one of the 51 critical-path files at ≥ 95% (lowest 95.2%).
+
+| # | Criterion | Status |
+|---|---|---|
+| 1 | `check.sh` passes locally and in CI | Locally: met. CI: the workflow is in place and has not yet run on GitHub. |
+| 2 | Coverage ≥ 85% overall, ≥ 95% on critical paths | Met (99.15%; lowest critical file 95.2%). |
+| 3 | All 5 deployables start in Docker | Met locally with `scripts/smoke_deployables.sh`: `/readyz` 200 ×3, `--check` exit 0 ×2. |
+| 4 | Sign-up and sign-in by OTP, Google, Facebook; linking matrix | Met in tests, with the fake JWKS and Graph API. The real Google test account and the Meta test user on staging are manual checks (§F.5). |
+| 5 | Refresh reuse revokes within one request; logout blocks the access token | Met (`test_tokens.py`, `test_end_to_end.py`). |
+| 6 | 1,000 jobs once over 8 workers; killed worker's jobs complete after lease | Met (`tests/concurrency/test_job_claim.py`). |
+| 7 | 10,000 events relayed with zero loss and zero duplicates on replay | Met (`tests/concurrency/test_relay_volume.py`). |
+| 8 | Every B1 admin write is audited | Met (`test_admin_writes_audited.py`, `test_authz_matrix.py`, `test_audited.py`). |
+| 9 | No plain-text PII in the database | Met for the PII flows (`tests/security/test_no_plaintext_pii.py`). The scan runs inside its own test, not after the whole suite, because each test rolls back. |
+| 10 | Migrations round-trip on PG17; staging behind PgBouncer passes the API suite | Round trip: met (the migration tests and the CI migration job). PgBouncer transaction mode on staging: not done, because no staging environment exists yet. |
+
+Not done in B1 and outside this build's reach: the CI run on GitHub, the staging items (#4 real providers, #10 PgBouncer), the §F.5 manual checklist and the k6 run.
 
 ## Deviations
 
@@ -372,6 +391,30 @@ is still pending (00 A.5); the plan's defaults are used.
   - `scripts/export_openapi.py` writes `openapi.json`: 43 paths, built from default local settings so the output is the same on every machine.
   - `tests/contract/test_openapi_snapshot.py` fails when the committed file is stale, so CI catches drift in the existing test job.
 - **`backend/README.md`:** covers how to run, test and lay out the code, the conventions, and the HTTP hardening.
+- **Bug fixed: first social sign-in race.** Two parallel first sign-ins with one new identity both found no identity row and both inserted. The second hit a unique constraint and got a `500`. `create_social_account` now inserts in a savepoint. On `IntegrityError` it checks whether the identity now exists; if so it raises `RegistrationRaceError` (a `409 conflict`, "sign in instead"). `sign_in_with` retries once, and the retry is an ordinary sign-in to the winner's user, so the result is one user and two sessions. A parallel `sign-up/complete` with two pending tokens for one identity gets the `409`. An `IntegrityError` with no winning identity is re-raised unchanged.
+- **Authorization matrix:** `tests/modules/auth/test_authz_matrix.py` classifies every route in the app (49 method/path pairs) as public, user, owned or staff, and fails when a new route is not classified. For each route it checks anonymous, another student, staff without the permission, staff with it, and the student. Business checks after the gate (`step_up_required`, `phone_required`) count as passing the gate.
+- **Admin writes audited:** `tests/modules/ops/test_admin_writes_audited.py` performs every B1 admin write through the API and asserts exactly one audit row each, with the staff actor: role grant and revoke, runtime-config update, term create and delete, mute and lift, report resolve.
+- **Volume tests:** job claim is now 1,000 jobs over 8 workers (was 200 over 4). A new test kills a worker after it claims a batch; its jobs run once after the lease expires. `tests/concurrency/test_relay_volume.py` relays 10,000 events through a sink that crashes once after its S3 write and before commit. The replay overwrites the same deterministic key, and S3 then holds exactly the 10,000 published ids.
+- **No plain-text PII:** `tests/security/test_no_plaintext_pii.py` drives sign-up, guardian consent, step-up, phone change and Google sign-up and sign-in. It then scans every text, JSON, array and bytea column in the app schemas, and every Redis value, for the phones and email used. A planted control value proves the scan finds what it should.
+- **Event contract:** `tests/contract/test_event_envelope.py` validates a real `user.signed_in` outbox row as `EventEnvelope` v1 and `UserSignedIn`. It also compares both JSON schemas with golden files in `tests/contract/golden/`, so a consumer-visible change must be deliberate (`UPDATE_GOLDEN=1`).
+- **Deployables:** `scripts/smoke_deployables.sh` builds the image and starts all five deployables against the local services: `/readyz` 200 for api, ai-gateway and exam-ingest; `--check` exits 0 for workers and exam-consumers. It passed locally. It is not in CI yet because the CI image job has no services.
+- **Load script:** `tests/load/auth.js` (k6) targets OTP verify and refresh at 100 + 100 req/s with p95 < 150 ms, with the SMS send excluded. It has not been run, and no capacity figure is claimed. Its preconditions are an open question: verify needs a known code, B1 accepts a fixed code only in local and test, and the auth rate limits must be raised for the run.
+
+### Test plan file names
+These §F test-plan entries are covered under other file names. The cases listed in the plan are all present.
+
+| Spec file | Covered in |
+|---|---|
+| `tests/core/test_body_limits.py` | `tests/core/test_http_app.py`, `tests/core/test_http_hardening.py` |
+| `tests/core/test_errors.py`, `tests/core/test_health.py` | `tests/core/test_http_app.py`, `tests/entrypoints/test_http_apps.py` |
+| `tests/modules/auth/providers/test_google.py`, `test_facebook.py` | `tests/modules/auth/test_providers.py`, `test_providers_edge.py` |
+| `tests/modules/auth/test_pending_signup.py` | `tests/modules/auth/test_services.py`, `test_end_to_end.py` |
+| `tests/modules/auth/test_sessions.py` | `tests/modules/auth/test_me.py`, `test_tokens.py` |
+| `tests/modules/auth/test_social_sign_in.py`, `test_social_link.py` | `tests/modules/auth/test_social.py`, `test_identities.py` |
+| `tests/modules/nfr/test_consumer_dedupe.py`, `test_outbox_relay.py` | `tests/modules/nfr/test_relay.py` |
+| `tests/modules/nfr/test_jobs_repo.py` | `tests/modules/nfr/test_jobs.py` |
+| `tests/shared/test_dhaka_date.py` | `tests/shared/test_shared_helpers.py` |
+| `tests/test_structure.py` | `tests/tooling/test_check_scripts.py` (the gate scripts themselves) |
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

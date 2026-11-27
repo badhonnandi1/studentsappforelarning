@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError
@@ -88,6 +89,13 @@ async def attach_identity(
     return row
 
 
+class RegistrationRaceError(ConflictError):
+    """A parallel first sign-in with the same identity committed first (05 §E)."""
+
+    def __init__(self) -> None:
+        super().__init__("This account is already registered; sign in instead")
+
+
 async def create_social_account(
     session: AsyncSession,
     ident: VerifiedIdentity,
@@ -105,8 +113,16 @@ async def create_social_account(
     email = ident.email if ident.provider == "google" and ident.email_verified else None
     if email and await identities_repo.user_by_email(session, keyed_hash(email, "email")):
         email = None
-    user = await create_user(
-        session, dob=dob, display_name=display_name, now=now, verified_email=email
-    )
-    await attach_identity(session, user, ident, row, now)
+    try:
+        async with session.begin_nested():
+            user = await create_user(
+                session, dob=dob, display_name=display_name, now=now, verified_email=email
+            )
+            await attach_identity(session, user, ident, row, now)
+            await session.flush()
+    except IntegrityError:
+        winner = await identities_repo.by_subject(session, ident.provider, ident.subject)
+        if winner is None or winner.unlinked_at is not None:
+            raise
+        raise RegistrationRaceError() from None
     return user

@@ -30,6 +30,8 @@ from app.core.security.actor import set_grants_loader
 from app.modules.registry import load_models
 from tests.support import db as test_db
 
+pytest_plugins = ["tests.support.full_app"]  # whole-API fixtures: api, people, wired
+
 load_models()
 
 

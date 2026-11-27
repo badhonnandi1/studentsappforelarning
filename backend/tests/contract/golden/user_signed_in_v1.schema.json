@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "description": "``user_id`` is on the envelope. No phone, email or token ever appears here.",
+  "properties": {
+    "created": {
+      "title": "Created",
+      "type": "boolean"
+    },
+    "method": {
+      "enum": [
+        "otp",
+        "google",
+        "facebook",
+        "apple",
+        "password",
+        "sso"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "platform": {
+      "enum": [
+        "android",
+        "web",
+        "ios"
+      ],
+      "title": "Platform",
+      "type": "string"
+    },
+    "session_id": {
+      "format": "uuid",
+      "title": "Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "method",
+    "platform",
+    "created"
+  ],
+  "title": "UserSignedIn",
+  "type": "object"
+}

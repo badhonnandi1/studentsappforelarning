@@ -59,7 +59,15 @@ async def sign_in_with(
     if body.date_of_birth is not None:
         pending_signup.check_dob(body.date_of_birth, now)
     ident = await verified(provider_name, body.token, body.nonce)
-    started: sign_in.Started | None = None
+    try:
+        return await _sign_in_verified(session, ident, body, ip=ip, now=now)
+    except accounts.RegistrationRaceError:  # the parallel request made the user: now just sign in
+        return await _sign_in_verified(session, ident, body, ip=ip, now=now)
+
+
+async def _sign_in_verified(
+    session: AsyncSession, ident: VerifiedIdentity, body: SocialSignInIn, *, ip: str, now: datetime
+) -> SignInOut | NeedsProfileOut:
     linked = created = False
     async with session.begin():
         user, linked = await _existing_user(session, ident, now)
