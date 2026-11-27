@@ -158,6 +158,7 @@ async def test_security_and_version_headers(client: httpx.AsyncClient) -> None:
     assert response.headers["Content-Security-Policy"].startswith("default-src 'none'")
     assert response.headers["X-Min-App-Version"] == "1.0.0"
     assert "Strict-Transport-Security" in response.headers
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 async def test_body_limit_default(client: httpx.AsyncClient) -> None:

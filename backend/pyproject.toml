@@ -126,7 +126,10 @@ paths = [
     "app/modules/nfr/internal/services/idempotency.py",
     "app/modules/nfr/internal/services/runner.py",
     "app/modules/nfr/internal/services/consumer.py",
+    "app/modules/nfr/internal/services/enqueue.py",
+    "app/modules/nfr/internal/services/publish.py",
+    "app/modules/nfr/internal/jobs/*",
     "app/modules/auth/internal/services/*",
     "app/modules/auth/internal/providers/*",
-    "app/modules/ops/internal/services/audited.py",
+    "app/modules/ops/internal/services/audit*",
 ]

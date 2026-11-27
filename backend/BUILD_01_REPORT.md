@@ -358,6 +358,21 @@ is still pending (00 A.5); the plan's defaults are used.
   - The script cannot mint a prod-valid token in any case: prod signing keys never exist outside the deployment.
 - **End-to-end test:** `tests/modules/auth/test_end_to_end.py` covers OTP sign-up → profile (seeded district) → guardian consent → refresh → session revoke (access token refused, refresh refused).
 
+### Hardening (step 13)
+- **Already in place:** most of the hardening landed with step 2 (`core/http.py`, `core/middleware.py`): security headers, the CORS allow-list, body limits, and the prod settings validator. Step 13 closes the gaps that were left.
+- **CORS:** `allow_headers` was `*`. It is now the exact list of request headers the API reads: `Authorization`, `Content-Type`, `Idempotency-Key`, `X-Device-Id`, `X-Step-Up-Token`, `X-Request-ID`, `traceparent`. Preflights are cached for 600 s. Credentials stay off because auth is by bearer token, not cookie. Tests cover a listed origin, an unlisted origin and an unlisted header.
+- **`Cache-Control: no-store` (addition):** now the default on every API response. RFC 6749 §5.1 requires it for token responses, and it keeps personal data out of shared caches. Routes that serve public reference data set their own value first (`/v1/reference/*`, `/v1/config/client`). The docs pages are untouched.
+- **Body limit bug fixed:** a chunked body with no `Content-Length` that went over the limit got FastAPI's `400` instead of `413`, because FastAPI catches the exception raised while it reads the body. The middleware now discards the app's reply and sends the `413` itself.
+- **Log redaction:**
+  - New sensitive keys: `appsecret`, `api_key`, `private_key`.
+  - String values, the event text and rendered tracebacks are now also scanned, and Bangladesh mobile numbers (`+880…`, `880…` and `01…` forms) and email addresses are masked. This backs up the key rule. Callers still must not log PII.
+  - Tests check that ids, hashes and years survive the scan.
+- **Critical coverage:** the paths now match all the B1 groups in 15 §5. Added: `nfr/internal/services/{enqueue,publish}.py`, `nfr/internal/jobs/*`, and `ops/internal/services/audit*`. A test was added for the retention job skipping tables that later builds create.
+- **OpenAPI snapshot:**
+  - `scripts/export_openapi.py` writes `openapi.json`: 43 paths, built from default local settings so the output is the same on every machine.
+  - `tests/contract/test_openapi_snapshot.py` fails when the committed file is stale, so CI catches drift in the existing test job.
+- **`backend/README.md`:** covers how to run, test and lay out the code, the conventions, and the HTTP hardening.
+
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
 - **`fake_sent` status:** added to the `sms_messages.status` CHECK (01 lists queued/sent/delivered/failed; 05's risk table names `fake_sent`). Numbers in the reserved test block (`+8801700000000`–`+8801700009999`) never reach a gateway; they are stored as `fake_sent` with provider `test_block`.

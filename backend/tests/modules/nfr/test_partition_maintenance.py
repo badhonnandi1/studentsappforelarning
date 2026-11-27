@@ -144,3 +144,12 @@ async def test_retention_purges_only_expired(session: AsyncSession) -> None:
         "platform.dead_jobs": 1,
         "identity.otp_challenges": 1,  # 30-day retention (01 §4.2)
     }
+
+
+async def test_retention_skips_tables_of_later_builds(session: AsyncSession) -> None:
+    rules = (
+        retention.RetentionRule("practice.answers_not_built_yet", "true"),
+        retention.RetentionRule("platform.idempotency_keys", "expires_at < :now"),
+    )
+    report = await retention.purge(session, datetime(2026, 1, 15, tzinfo=UTC), rules)
+    assert report == {"platform.idempotency_keys": 0}

@@ -47,3 +47,43 @@ def test_configure_logging_installs_redaction(capsys: pytest.CaptureFixture[str]
     configure_logging(json=False)
     structlog.reset_defaults()
     logging.getLogger().handlers = []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "send failed for +8801712345678",
+        "send failed for 8801712345678",
+        "send failed for 01712345678",
+        "provider said: user rafi.k+test@mail.example.com not found",
+    ],
+)
+def test_pii_in_free_text_is_masked(text: str) -> None:
+    out = redact_pii(None, "info", {"event": text, "detail": {"body": text}, "notes": [text]})
+    for value in (out["event"], out["detail"]["body"], out["notes"][0]):
+        assert REDACTED in value
+        assert "1712345678" not in value
+        assert "mail.example.com" not in value
+
+
+def test_ids_and_hashes_survive_text_scan() -> None:
+    text = "user 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b hash 9f86d081884c7d65 count 2026"
+    assert redact_pii(None, "info", {"event": text})["event"] == text
+    assert is_sensitive("sms_api_key")
+    assert is_sensitive("appsecret_proof")
+
+
+def test_rendered_traceback_is_masked(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging(json=True, level="info")
+    try:
+        try:
+            raise ValueError("no account for 01712345678")
+        except ValueError:
+            structlog.get_logger("t").exception("lookup_failed")
+        logging.getLogger().handlers[0].flush()
+        err = capsys.readouterr().err
+        assert "ValueError" in err
+        assert "01712345678" not in err
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger().handlers = []

@@ -23,6 +23,18 @@ from app.core.settings import Settings, get_settings
 ReadyCheck = Callable[[], Awaitable[object]]
 Lifespan = Callable[[FastAPI], AbstractAsyncContextManager[None]]
 READY_TIMEOUT_S = 2.0
+# Request headers browsers may send cross-origin: exactly the ones the API reads.
+CORS_REQUEST_HEADERS = (
+    "Authorization",
+    "Content-Type",
+    "Idempotency-Key",
+    "X-Device-Id",
+    "X-Step-Up-Token",
+    "X-Request-ID",
+    "traceparent",
+)
+CORS_EXPOSED_HEADERS = ("X-Request-ID", "Retry-After", "Idempotent-Replay", "X-Min-App-Version")
+CORS_MAX_AGE_S = 600
 
 
 async def run_ready_checks(checks: Mapping[str, ReadyCheck]) -> list[str]:
@@ -94,8 +106,9 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["*"],
-        expose_headers=["X-Request-ID", "Retry-After", "Idempotent-Replay", "X-Min-App-Version"],
+        allow_headers=list(CORS_REQUEST_HEADERS),
+        expose_headers=list(CORS_EXPOSED_HEADERS),
+        max_age=CORS_MAX_AGE_S,
     )
     app.add_middleware(SecurityHeadersMiddleware, min_app_version=lambda: app.state.min_app_version)
     app.add_middleware(RequestContextMiddleware)

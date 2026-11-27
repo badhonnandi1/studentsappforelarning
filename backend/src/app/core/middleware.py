@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Callable
 
@@ -43,6 +44,9 @@ class SecurityHeadersMiddleware:
                     headers.setdefault(name, value)
                 if not is_docs:
                     headers.setdefault("Content-Security-Policy", JSON_CSP)
+                    # tokens and personal data must not sit in shared caches; routes that serve
+                    # public reference data set their own Cache-Control first
+                    headers.setdefault("Cache-Control", "no-store")
                 headers["X-Min-App-Version"] = self.min_app_version()
             await send(message)
 
@@ -71,7 +75,7 @@ class BodyLimitMiddleware:
             await _send_413(send)
             return
         received = 0
-        rejected = False
+        rejected = started = False
 
         async def limited_receive() -> Message:
             nonlocal received, rejected
@@ -83,9 +87,18 @@ class BodyLimitMiddleware:
                     raise _TooLargeError
             return message
 
-        try:
-            await self.app(scope, limited_receive, send)
-        except _TooLargeError:
+        async def guarded_send(message: Message) -> None:
+            # FastAPI turns an exception raised while it reads the body into its own 400; once
+            # the limit is hit, drop whatever the app answers and send the 413 instead.
+            nonlocal started
+            if rejected:
+                return
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        with contextlib.suppress(_TooLargeError):
+            await self.app(scope, limited_receive, guarded_send)
+        if rejected and not started:
             await _send_413(send)
 
 
