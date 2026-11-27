@@ -54,7 +54,7 @@ class Tier:
 TIERS: dict[str, Tier] = {
     t.name: t
     for t in (
-        Tier("otp_ip", (Rule("ip", 10, 3600),), fail_open=False),
+        Tier("otp_ip", (Rule("ip", 10, 3600), Rule("device", 10, 3600)), fail_open=False),
         Tier("otp_phone", (Rule("phone", 3, 900), Rule("phone", 5, 86400)), fail_open=False),
         Tier("auth", (Rule("ip", 20, 60), Rule("device", 10, 60))),
         Tier("write", (Rule("user", 120, 60),)),

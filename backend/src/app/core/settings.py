@@ -78,6 +78,8 @@ def deploy_problems(s: Settings) -> list[str]:
         problems.append("KMS_BACKEND must be aws")
     if s.test_phone_otp:
         problems.append("TEST_PHONE_OTP is only allowed in local and test")
+    if not (s.turnstile_secret.get_secret_value() and s.otp_challenge_url):
+        problems.append("TURNSTILE_SECRET and OTP_CHALLENGE_URL are required")
     if s.dev_staff_tokens:
         problems.append("DEV_STAFF_TOKENS must be false")
     if _short(s.otp_hash_key):

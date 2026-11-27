@@ -15,7 +15,7 @@ is still pending (00 A.5); the plan's defaults are used.
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
-| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds | in progress |
+| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me` | in progress |
 | 10–13 | Social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
@@ -73,6 +73,50 @@ is still pending (00 A.5); the plan's defaults are used.
 - **Model loading:** `start_stack` calls `registry.load_models()`, because NFR tables now have FKs to `identity.users`.
 - **OTP retention:** `otp_challenges` rows are purged after 30 days (01 §4.2); the step 5 rule said 24 hours.
 - **Round trip:** a test runs `downgrade base` → `upgrade head` → `alembic check` on a copy of the template.
+
+### OTP sign-in, tokens and sessions (AUTH, step 9 part 2)
+- **Schema additions:**
+  - `otp_challenges.phone_enc` is encrypted with context `identity.otp_challenges.phone`, because verify receives only the challenge id and guardian consent needs the number.
+  - `device_sessions.model` (≤ 64 chars).
+  - Revoke reason `session_limit`, used when the session cap evicts the oldest session.
+- **CAPTCHA:** Cloudflare Turnstile. `TURNSTILE_SECRET` and `OTP_CHALLENGE_URL` are required in deployed environments. Local and test environments accept the token `local-pass`. Play Integrity is not implemented in B1.
+- **When a challenge is required:** when the number's challenges in the last hour have ≥ 3 failed attempts in total (SUM of `attempts`). The response is `403 challenge_required` with `details.challenge_url`.
+- **Order of limits:** IP and device limits, then the CAPTCHA check, then the phone limit (3 per 15 min, 5 per day). A request refused for CAPTCHA does not spend the number's quota.
+- **Device limit:** `otp_ip` gains a device rule of 10 per hour.
+- **Rate-limit keys:** all are keyed hashes, so Redis holds no plain phone numbers, IPs or device ids.
+- **OTP send behaviour:**
+  - `resend_after_s` is 60.
+  - A suspended number is refused with `403`.
+  - Known and unknown numbers get the same `202` body.
+  - Idempotency on the public send is deferred, because it has no user to key on.
+- **Verify:**
+  - A wrong code returns `401 invalid_code` with `details.attempts_left`. The attempt count commits even though the request fails.
+  - The 6th attempt returns `429`. An expired or used code returns `410`.
+  - A double verify of one challenge is serialised by a row lock: one sign-in, one `410` (concurrency test).
+- **Pending sign-up:**
+  - Redis `auth:pending_signup:{token}` (32-byte token, 15 min, `GETDEL` single use).
+  - The phone in it is field-encrypted.
+  - The DOB is checked before the token is spent: 1900-01-01 ≤ DOB < today (Dhaka date).
+  - A number that signed up in the meantime gives `409`.
+- **Refresh rotation:**
+  - Opaque 32-byte tokens; only their SHA-256 is stored.
+  - Each rotation issues a child in the same family.
+  - Replaying a rotated token revokes the whole family and the device session (`token_reuse`). The audit action is `auth.refresh.reuse`, because the spec's `auth.refresh_reuse` fails the action regex.
+  - `api` refresh slides 30 days. `admin` (staff) refresh keeps the first token's expiry, so it does not slide. Staff tokens re-mint `sso=true, amr=["mfa"]` on refresh.
+- **Device sessions:**
+  - Signing in again on the same device reuses the live session and revokes its old tokens.
+  - When the cap is passed, the oldest session is revoked.
+  - `/v1/me/sessions` lists only `api`-audience sessions.
+  - Revoking a session that is not the caller's returns `404`.
+  - After commit, `revoked_sess:{sid}` is set, so access tokens fail on their next request.
+- **Consent state in `/v1/me`:** `granted`, `missing` or `not_required`.
+- **Event:** `user.signed_in` (v1) is registered in `auth/contracts/events.py`. Its payload holds the session id, method, platform and created flag, and no PII.
+- **Module layout:** `refresh.py` and `summary.py` are split out of `tokens.py` to avoid an import cycle.
+- **Lock ordering:** refresh locks token → session, while signing in again locks session → tokens. A deadlock between a refresh and a sign-in on the same device is possible but rare; PostgreSQL aborts one of the two, and the client retries.
+- **Deferred:**
+  - Display-name moderation (COM, step 11).
+  - Rejecting suspended users in `current_actor`; suspension revokes their sessions instead (step 11).
+  - Dormant-account and step-up rules (step 10).
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

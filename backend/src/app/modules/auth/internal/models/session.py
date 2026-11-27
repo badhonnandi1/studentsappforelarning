@@ -25,7 +25,15 @@ OTP_PURPOSES = ("sign_in", "guardian_consent", "phone_change", "step_up")
 PLATFORMS = ("android", "web", "ios")
 AUDIENCES = ("api", "admin")
 SIGN_IN_METHODS = ("otp", "google", "facebook", "apple", "password", "sso")
-REVOKE_REASONS = ("user", "logout", "token_reuse", "admin", "exam_takeover", "account_deleted")
+REVOKE_REASONS = (
+    "user",
+    "logout",
+    "token_reuse",
+    "admin",
+    "exam_takeover",
+    "account_deleted",
+    "session_limit",
+)
 LIVE = text("revoked_at IS NULL")
 TSTZ = DateTime(timezone=True)
 
@@ -42,6 +50,7 @@ class OtpChallenge(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     phone_hash: Mapped[bytes] = mapped_column(BYTEA, nullable=False)
+    phone_enc: Mapped[bytes] = mapped_column(BYTEA, nullable=False)
     purpose: Mapped[str] = mapped_column(Text, nullable=False)
     code_hash: Mapped[bytes] = mapped_column(BYTEA, nullable=False)
     attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
@@ -63,6 +72,7 @@ class DeviceSession(Base):
         check_in("sign_in_method", SIGN_IN_METHODS),
         check_in("revoke_reason", REVOKE_REASONS),
         CheckConstraint("char_length(user_agent) <= 256", name="user_agent"),
+        CheckConstraint("char_length(model) <= 64", name="model"),
         Index("ix_device_sessions_user_id", "user_id", postgresql_where=LIVE),
         Index(
             "uq_device_sessions_live",
@@ -85,6 +95,7 @@ class DeviceSession(Base):
     audience: Mapped[str] = mapped_column(Text, nullable=False, server_default="api")
     app_version: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(Text)
     ip_hash: Mapped[bytes | None] = mapped_column(BYTEA)
     sign_in_method: Mapped[str] = mapped_column(Text, nullable=False)
     exam_epoch: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

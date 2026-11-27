@@ -30,6 +30,8 @@ def safe_prod(**overrides: Any) -> dict[str, Any]:
         "staff_oidc_allowed_domains": ["example.com"],
         "staff_oidc_redirect_uris": ["https://admin.example.com/cb"],
         "test_phone_otp": "",
+        "turnstile_secret": KEY,
+        "otp_challenge_url": "https://app.example.com/challenge",
     }
     values.update(overrides)
     return values
@@ -64,6 +66,7 @@ def test_safe_prod_config_loads() -> None:
         ({"facebook_enabled": True, "facebook_app_id": "1"}, "FACEBOOK_APP_SECRET"),
         ({"test_phone_otp": "123456"}, "TEST_PHONE_OTP"),
         ({"dev_staff_tokens": True}, "DEV_STAFF_TOKENS"),
+        ({"turnstile_secret": ""}, "TURNSTILE_SECRET"),
         ({"staff_oidc_client_secret": ""}, "STAFF_OIDC_ISSUER"),
         ({"staff_oidc_allowed_domains": []}, "STAFF_OIDC_ALLOWED_DOMAINS"),
         ({"jwt_active_kid": "missing"}, "JWT_ACTIVE_KID"),

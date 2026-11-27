@@ -50,6 +50,8 @@ class AuthSettings(BaseSettings):
     staff_refresh_hours: int = 12
     max_sessions_per_user: int = 10
     test_phone_otp: str = ""
+    turnstile_secret: SecretStr = SecretStr("")  # CAPTCHA after repeated OTP failures (18 §2)
+    otp_challenge_url: str = ""  # page the client opens to get a CAPTCHA token
 
 
 class SocialSettings(BaseSettings):

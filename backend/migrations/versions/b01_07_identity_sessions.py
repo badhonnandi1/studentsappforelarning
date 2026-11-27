@@ -25,7 +25,9 @@ S = "identity"
 TSTZ = sa.DateTime(timezone=True)
 NOW = sa.text("now()")
 METHODS = "'otp', 'google', 'facebook', 'apple', 'password', 'sso'"
-REASONS = "'user', 'logout', 'token_reuse', 'admin', 'exam_takeover', 'account_deleted'"
+REASONS = (
+    "'user', 'logout', 'token_reuse', 'admin', 'exam_takeover', 'account_deleted', 'session_limit'"
+)
 
 
 def upgrade() -> None:
@@ -43,6 +45,7 @@ def upgrade() -> None:
         sa.Column("audience", sa.Text, nullable=False, server_default="api"),
         sa.Column("app_version", sa.Text),
         sa.Column("user_agent", sa.Text),
+        sa.Column("model", sa.Text),
         sa.Column("ip_hash", BYTEA),
         sa.Column("sign_in_method", sa.Text, nullable=False),
         sa.Column("exam_epoch", sa.Integer, nullable=False, server_default="0"),
@@ -56,6 +59,7 @@ def upgrade() -> None:
         sa.CheckConstraint(f"sign_in_method IN ({METHODS})", name="sign_in_method"),
         sa.CheckConstraint(f"revoke_reason IN ({REASONS})", name="revoke_reason"),
         sa.CheckConstraint("char_length(user_agent) <= 256", name="user_agent"),
+        sa.CheckConstraint("char_length(model) <= 64", name="model"),
         schema=S,
     )
     op.create_index(

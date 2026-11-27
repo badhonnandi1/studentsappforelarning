@@ -114,6 +114,7 @@ def upgrade() -> None:
         "otp_challenges",
         uuid_col("id", primary_key=True),
         sa.Column("phone_hash", BYTEA, nullable=False),
+        sa.Column("phone_enc", BYTEA, nullable=False),
         sa.Column("purpose", sa.Text, nullable=False),
         sa.Column("code_hash", BYTEA, nullable=False),
         sa.Column("attempts", sa.SmallInteger, nullable=False, server_default="0"),

@@ -130,8 +130,9 @@ async def test_retention_purges_only_expired(session: AsyncSession) -> None:
     for age in (31, 29):
         await session.execute(
             text(
-                "INSERT INTO identity.otp_challenges (id, phone_hash, purpose, code_hash, created_at)"
-                " VALUES (gen_random_uuid(), '\\x01', 'sign_in', '\\x02', :at)"
+                "INSERT INTO identity.otp_challenges"
+                " (id, phone_hash, phone_enc, purpose, code_hash, created_at)"
+                " VALUES (gen_random_uuid(), '\\x01', '\\x03', 'sign_in', '\\x02', :at)"
             ),
             {"at": now - timedelta(days=age)},
         )
