@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -20,6 +20,7 @@ from app.modules import nfr, ops
 from app.modules.ops.internal.models import AuditLog
 from tests.modules.ops.conftest import AUDITOR, OPERATOR
 from tests.support.tokens import bearer, staff_token
+from tests.support.users import make_user
 
 pytestmark = [pytest.mark.api, pytest.mark.db]
 
@@ -54,8 +55,10 @@ async def seed(session: AsyncSession, n: int, *, actor: uuid.UUID = AUDITOR) -> 
 
 
 async def test_put_runtime_config_writes_and_audits(
-    client: httpx.AsyncClient, session: AsyncSession
+    client: httpx.AsyncClient, session: AsyncSession, sessions: Callable[[], AsyncSession]
 ) -> None:
+    async with sessions() as setup, setup.begin():  # updated_by references identity.users
+        await make_user(setup, OPERATOR)
     body = {"value": True, "reason": "SMS provider outage"}
     response = await client.put(
         "/v1/admin/runtime-config/kill.tutor", json=body, headers=as_(OPERATOR)

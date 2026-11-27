@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Date, Index, SmallInteger, Text, text
+from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, SmallInteger, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -89,8 +89,9 @@ class DeadJob(Base):
     last_error: Mapped[str] = mapped_column(Text, nullable=False)
     failed_at: Mapped[datetime] = created_at()
     resolved_at: Mapped[datetime | None] = tstz()
-    # FK to identity.users(id) is added with that table in b01_06.
-    resolved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("identity.users.id", ondelete="RESTRICT")
+    )
     resolution: Mapped[str | None] = mapped_column(Text)
 
 

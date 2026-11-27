@@ -8,6 +8,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 from redis.asyncio import Redis
+from structlog.testing import capture_logs
 
 from app.core.resilience import CircuitBreaker, CircuitOpenError
 from app.core.settings import Settings
@@ -93,14 +94,13 @@ async def test_default_breaker_and_gateway_selection(app_redis: Redis) -> None:
         providers.use_gateway(None)
 
 
-async def test_fake_logs_body_only_locally(capsys: pytest.CaptureFixture[str]) -> None:
+async def test_fake_logs_body_only_locally() -> None:
     deployed = FakeSmsGateway(Settings(_env_file=None))
     object.__setattr__(deployed.settings, "app_env", "staging")
-    capsys.readouterr()
-    await deployed.send(PHONE, "code 999111")
-    assert "999111" not in capsys.readouterr().out
+    with capture_logs() as logs:
+        await deployed.send(PHONE, "code 999111")
+        local = FakeSmsGateway(Settings(_env_file=None))
+        await local.send(PHONE, "no digits here")
+    assert [entry.get("sms_body") for entry in logs] == ["no digits here"]
     assert deployed.last_code(PHONE) == "999111"
-    local = FakeSmsGateway(Settings(_env_file=None))
-    await local.send(PHONE, "no digits here")
-    assert "no digits here" in capsys.readouterr().out
     assert local.last_code(PHONE) is None

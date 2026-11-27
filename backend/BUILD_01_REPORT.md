@@ -15,7 +15,8 @@ is still pending (00 A.5); the plan's defaults are used.
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
-| 9–13 | AUTH, social, staff SSO, COM, seeds, hardening | pending |
+| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds | in progress |
+| 10–13 | Social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
 
@@ -60,6 +61,19 @@ is still pending (00 A.5); the plan's defaults are used.
 - **Shared boot code:** start-up shared by every deployable is in `entrypoints/boot.py`, which does not import the DB, so exam-ingest can use it. The DB-backed start-up for api, ai-gateway and workers is in `entrypoints/stack.py`. A subprocess test checks that the ingest app loads no SQLAlchemy, asyncpg, Alembic or `core.db`.
 - **Docker and Compose:** per-deployable Docker commands and Compose services are left to step 13; the Dockerfile still defaults to the API.
 
+### Identity schema (AUTH, `b01_06`–`b01_10`)
+- **OTP purpose:** the `otp_challenges.purpose` CHECK adds `step_up` (R-25 needs it; 01 lists three purposes).
+- **Permission codes:** the CHECK is `^[a-z_]+(\.[a-z_]+)*$`, so the single-word codes that 05 §C.6 and 14 use (`moderation`, `privacy`, `curriculum`) are valid; 01's regex required a dot.
+- **Class level:** `profiles.class_level` is `BETWEEN 6 AND 14`; 13 stores `admission` and 14 stores `job` (the API speaks the words). 01's CHECK stopped at 12.
+- **Device sessions:** added `audience` (`api`/`admin`; staff sessions refresh for 12 h and mint `aud=admin`), `sso` in the `sign_in_method` CHECK, `restricted_until` (the 72 h restricted mode, R-25) and a partial unique `(user_id, device_id, audience) WHERE revoked_at IS NULL` (one live session per device).
+- **Global grants:** the active-grant unique index uses `NULLS NOT DISTINCT`, so a second active global grant of the same role is refused (with plain NULLs it would not be).
+- **OTP index:** `(phone_hash, created_at)` ascending; a B-tree serves the "latest first" scan backwards and avoids an expression index that `alembic check` cannot compare.
+- **Role → permission seed (default until the content builds refine it):** `content_author` = content.read, content.author; `reviewer` = content.read, content.verify, content.triage; `ops_admin` = user.read, user.write, audit.read, ops.config, moderation, privacy; `super_admin` = all. `student`, `parent`, `teacher` and `institution_admin` have no B1 permissions. Staff roles (`is_staff`) are content_author, reviewer, ops_admin and super_admin.
+- **Seed copy:** `b01_08` holds a frozen copy of the roles and permissions; `tests/contract/test_rbac_seed.py` checks it against `auth/internal/permissions.py`.
+- **Model loading:** `start_stack` calls `registry.load_models()`, because NFR tables now have FKs to `identity.users`.
+- **OTP retention:** `otp_challenges` rows are purged after 30 days (01 §4.2); the step 5 rule said 24 hours.
+- **Round trip:** a test runs `downgrade base` → `upgrade head` → `alembic check` on a copy of the template.
+
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
 - **`fake_sent` status:** added to the `sms_messages.status` CHECK (01 lists queued/sent/delivered/failed; 05's risk table names `fake_sent`). Numbers in the reserved test block (`+8801700000000`–`+8801700009999`) never reach a gateway; they are stored as `fake_sent` with provider `test_block`.
@@ -87,9 +101,9 @@ is still pending (00 A.5); the plan's defaults are used.
 ### Spec inconsistencies found (to resolve with the spec owner)
 - **SMS revision name:** 05 names the SMS migration `b01_11` while 03 gives `b01_11` to COM and `b01_12` to SMS; 05's names are used (SMS `b01_11`, COM `b01_12`).
 - **SMS status:** 01 has no `fake_sent` status, but 05's risk table relies on it.
-- **OTP purpose:** the CHECK on otp purpose needs `step_up`.
-- **Permission codes:** `moderation`, `privacy` and `curriculum` fail the permission-code regex.
-- **Profile class level:** `admission`/`job` values conflict with the CHECK on 6–12.
+- **OTP purpose:** the CHECK on otp purpose needs `step_up` (resolved as above).
+- **Permission codes:** `moderation`, `privacy` and `curriculum` fail 01's permission-code regex (resolved as above).
+- **Profile class level:** `admission`/`job` values conflict with the CHECK on 6–12 (resolved as above).
 - **Naming:** restriction scope names and report `target_type` values differ between the API spec and the DB spec.
 - **Meta deletion:** the Meta data-deletion callback uses `identity.data_requests`.
 - **HIBP:** HIBP fail-open is a B8 item.

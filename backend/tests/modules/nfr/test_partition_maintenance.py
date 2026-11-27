@@ -127,6 +127,19 @@ async def test_retention_purges_only_expired(session: AsyncSession) -> None:
         dedupe_until=now - timedelta(days=1),
     )
     await session.execute(text("UPDATE platform.jobs SET status = 'done'"))
+    for age in (31, 29):
+        await session.execute(
+            text(
+                "INSERT INTO identity.otp_challenges (id, phone_hash, purpose, code_hash, created_at)"
+                " VALUES (gen_random_uuid(), '\\x01', 'sign_in', '\\x02', :at)"
+            ),
+            {"at": now - timedelta(days=age)},
+        )
     await session.flush()
     report = await retention.purge(session, now)
-    assert report == {"platform.idempotency_keys": 1, "platform.jobs": 1, "platform.dead_jobs": 1}
+    assert report == {
+        "platform.idempotency_keys": 1,
+        "platform.jobs": 1,
+        "platform.dead_jobs": 1,
+        "identity.otp_challenges": 1,  # 30-day retention (01 §4.2)
+    }

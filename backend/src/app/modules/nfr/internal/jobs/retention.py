@@ -34,7 +34,7 @@ RULES: tuple[RetentionRule, ...] = (
         "resolved_at IS NOT NULL AND resolved_at < CAST(:now AS timestamptz) - interval '30 days'",
     ),
     RetentionRule(
-        "identity.otp_challenges", "created_at < CAST(:now AS timestamptz) - interval '24 hours'"
+        "identity.otp_challenges", "created_at < CAST(:now AS timestamptz) - interval '30 days'"
     ),
 )
 

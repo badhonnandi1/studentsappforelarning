@@ -26,7 +26,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.redis import use_client
+from app.modules.registry import load_models
 from tests.support import db as test_db
+
+load_models()
 
 
 def worker_id() -> str:
