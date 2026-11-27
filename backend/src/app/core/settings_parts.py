@@ -61,6 +61,7 @@ class SocialSettings(BaseSettings):
     facebook_app_id: str = ""
     facebook_app_secret: SecretStr = SecretStr("")
     facebook_graph_version: str = "v27.0"
+    public_api_url: str = "http://localhost:8000"  # links handed to Meta (deletion status)
     staff_oidc_issuer: str = "https://accounts.google.com"
     staff_oidc_client_id: str = ""
     staff_oidc_client_secret: SecretStr = SecretStr("")

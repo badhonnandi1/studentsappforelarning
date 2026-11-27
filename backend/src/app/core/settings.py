@@ -96,6 +96,8 @@ def deploy_problems(s: Settings) -> list[str]:
         problems.append("GOOGLE_CLIENT_IDS is required when Google is enabled")
     if s.facebook_enabled and (not s.facebook_app_id or _short(s.facebook_app_secret)):
         problems.append("FACEBOOK_APP_ID and FACEBOOK_APP_SECRET are required when enabled")
+    if s.facebook_enabled and not s.public_api_url.startswith("https://"):
+        problems.append("PUBLIC_API_URL must be https when Facebook is enabled")
     staff = (s.staff_oidc_issuer, s.staff_oidc_client_id, s.staff_oidc_client_secret)
     if not all(v.get_secret_value() if isinstance(v, SecretStr) else v for v in staff):
         problems.append("STAFF_OIDC_ISSUER, _CLIENT_ID and _CLIENT_SECRET are required")

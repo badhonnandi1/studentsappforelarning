@@ -16,7 +16,7 @@ is still pending (00 A.5); the plan's defaults are used.
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
 | 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo; privacy, guardian consent, consent documents, stale-session purge | done |
-| 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | in progress |
+| 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | done |
 | 10a–13 | Staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
@@ -271,6 +271,22 @@ is still pending (00 A.5); the plan's defaults are used.
   - Other sessions are not revoked on a phone change (the spec does not ask for it; see Proposed additions).
 - **Deletion step-up:** the `deletion` and `guardian_change` actions are accepted, but B1 has no user deletion-request or guardian-change route (§D lists none). The 05 test line "deletion without `X-Step-Up-Token` → 403" therefore waits for the build that adds the route.
 - **Module layout:** the dormant rule is in `services/dormant.py`, not `step_up.py` as 05 §B lists, to avoid an import cycle with `otp_verify`.
+
+### Meta callbacks (AUTH, step 10 part 3)
+- **`signed_request`:**
+  - The signature (base64url HMAC-SHA256 of the encoded payload, with the app secret) is compared in constant time **before** the payload is parsed.
+  - The payload must be a JSON object with `user_id` and `algorithm = HMAC-SHA256`. Any failure is `400 bad_request` with no detail.
+  - With Facebook disabled, the callbacks return `404`.
+  - Both callbacks use the auth tier per IP; the status page uses the read tier per IP.
+- **Data deletion:**
+  - The Facebook identity is unlinked (`unlink_reason = data_deletion`) and an `identity.data_requests` row is opened: `kind = deletion`, `requested_via = facebook_callback`, and a random 16-byte confirmation code.
+  - The audit row is `auth.identity.data_deletion`, with actor kind `provider`.
+  - A repeated callback while a request is still open returns the same code.
+  - Carrying out the deletion stays support-driven until B6.
+  - **Deviation:** for a Facebook user we have never seen, the callback still returns 200 with a code, because Meta requires one. No row can exist (`data_requests.user_id` is NOT NULL), so that code's status page is `404`.
+- **Status:** `GET /v1/auth/social/facebook/deletion-status/{code}` returns `received` (for `open`, `in_progress` or `rejected`) or `completed`, with `completed_at`.
+- **Deauthorise:** unlinks the identity (`deauthorized`), writes the audit row `auth.identity.deauthorize`, and returns `{}`.
+- **New setting `PUBLIC_API_URL`:** the base of the status URL given to Meta. It must be https when Facebook is enabled in prod or staging.
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.
