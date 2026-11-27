@@ -18,7 +18,7 @@ is still pending (00 A.5); the plan's defaults are used.
 | 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo; privacy, guardian consent, consent documents, stale-session purge | done |
 | 10 | AUTH social (in parts): providers, nonce, social sign-in (part 1); step-up, dormant rule, identities, phone change (part 2); Meta callbacks (part 3) | done |
 | 10a | Staff SSO (R-07): OIDC client, start/callback, admin-audience checks | done |
-| 11 | COM moderation (in parts): folding, `moderate()`, terms admin, display-name checks (part 1); reports, restrictions, bans (part 2) | part 1 done |
+| 11 | COM moderation (in parts): folding, `moderate()`, terms admin, display-name checks (part 1); reports, restrictions, bans (part 2) | done |
 | 12–13 | Seeds, hardening | pending |
 
 ## Deviations
@@ -330,6 +330,20 @@ is still pending (00 A.5); the plan's defaults are used.
 - **Term cache:** active terms are cached per process for 5 minutes. An admin write drops the cache in that process only; other processes pick up the change within 5 minutes.
 - **Decision log on a block:** when `moderate` is called outside a transaction it commits its own log row, so a block is recorded even though the caller refuses the write.
 - **Display names:** user-entered names are checked on `PATCH /v1/me` and on `POST /v1/auth/sign-up/complete`, where a block is `422 moderation_blocked`. Sign-up checks the name before spending the pending token, so the user can retry. Provider-supplied names are not moderated in B1; they are never shown publicly until the user sets a display name. `first_name`/`last_name` are private and not moderated.
+- **Restrictions:**
+  - The API's scope `all` is stored as `global`, which covers every scope.
+  - A ban of any scope ends all the user's sessions (reason `admin`, refresh tokens revoked, access tokens refused through the Redis revocation list). Only a global ban also refuses sign-in, with `403 account_banned` checked in `sign_in.start_session`. A `community` or `profile` ban is "signed out once, may come back with limits".
+  - COM does not import AUTH: AUTH registers a `SessionRevoker` (`BanRevoker`) in `auth.startup()`, and COM raises if none is registered.
+  - A mute or ban in `community` (or `global`) refuses `POST /v1/reports` with `403 restricted`. A `profile` restriction refuses display-name changes on `PATCH /v1/me` with the same code; other fields still change.
+  - `is_restricted` reads a 60 s Redis cache (`com:restrictions:{user_id}`). Every COM write drops it; with Redis down it reads Postgres.
+  - Lifting sets `lifted_at`. It does not restore ended sessions; the user signs in again.
+  - An unknown `user_id` is `404` (the FK violation is mapped). `ends_at` in the past is `422`.
+- **Reports:**
+  - Rate limit: a new `report` tier (20 per user per 86,400 s). Report text runs through `ensure_allowed` (context `content_report`); a block is `422 moderation_blocked`.
+  - Creation is audited (`com.report.create`, actor kind user), so every COM write is in `audit_log`.
+  - The admin queue pages oldest first (a work queue, matching the `(status, created_at)` index).
+  - Resolve: there is no note column, so the note goes in the audit `reason` (and is the restriction's reason when one is applied). A resolved report is `409`. A restriction needs `decision=action_taken` and a report about a user (`user`, `display_name`, `profile_photo`, where `target_id` is the user id); post and `other` reports cannot carry one in B1 (`422 target_not_a_user`), because posts arrive in B2.
+  - The resolution, the restriction and the idempotency record commit in one transaction.
 - **Terms admin:** `severity` uses low/medium/high on the API (1/2/3 in the DB). A delete is soft (`is_active=false`), and adding the same term again reactivates the row. Every write is audited (`com.term.create`, `com.term.delete`).
 
 ### SMS (PLAN)

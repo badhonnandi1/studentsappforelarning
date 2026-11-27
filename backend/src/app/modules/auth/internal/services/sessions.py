@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,3 +42,18 @@ async def revoke_own(
             rec.after = {"reason": "user"}
             await repo.revoke(session, ds, "user", now)
     await mark_revoked([session_id])
+
+
+class BanRevoker:
+    """COM's ``SessionRevoker``: a ban ends every live session of the user (reason ``admin``)."""
+
+    async def revoke_all(
+        self, session: AsyncSession, user_id: uuid.UUID, now: datetime
+    ) -> list[uuid.UUID]:
+        rows = await repo.live_for_user(session, user_id)
+        for ds in rows:
+            await repo.revoke(session, ds, "admin", now)
+        return [ds.id for ds in rows]
+
+    async def after_commit(self, session_ids: Sequence[uuid.UUID]) -> None:
+        await mark_revoked(session_ids)

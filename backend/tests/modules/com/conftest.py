@@ -1,4 +1,5 @@
-"""COM fixtures: a moderator, an API client with COM's routers, and a fresh term index."""
+"""COM fixtures: a moderator, an API client with COM's routers, a fresh term index, and AUTH's
+session revoker (registered by ``auth.startup`` in the app)."""
 
 from __future__ import annotations
 
@@ -18,10 +19,14 @@ from app.core.security import actor as actor_mod
 from app.core.security.actor import Grant
 from app.core.settings import Settings
 from app.modules import com
+from app.modules.auth.internal.models import User
+from app.modules.auth.internal.schemas.auth import DeviceInfo
+from app.modules.auth.internal.services import sign_in
+from app.modules.auth.internal.services.sessions import BanRevoker
 from app.modules.com.internal.models import ModerationTerm
 from app.modules.com.internal.repositories import terms as terms_repo
 from app.modules.com.internal.services.moderate import fold_term
-from tests.support.tokens import bearer, staff_token
+from tests.support.tokens import bearer, ensure_keys, staff_token
 from tests.support.users import make_user
 
 MODERATOR = uuid.UUID("00000000-0000-7000-8000-0000000000c1")
@@ -33,12 +38,28 @@ async def loader(user_id: uuid.UUID) -> list[Grant]:
 
 
 @pytest.fixture(autouse=True)
-def grants_and_terms() -> Iterator[None]:
+def grants_terms_revoker() -> Iterator[None]:
+    """The fake grants loader, a fresh term index and AUTH's real session revoker."""
     actor_mod.set_grants_loader(loader)
+    com.set_session_revoker(BanRevoker())
     terms_repo.invalidate()
+    ensure_keys()
     yield
     actor_mod.set_grants_loader(None)
+    com.set_session_revoker(None)
     terms_repo.invalidate()
+
+
+async def signed_in(
+    session: AsyncSession, user_id: uuid.UUID, now: datetime, device: str = "device-c001"
+) -> str:
+    """Start a real AUTH device session for ``user_id``; return its access token."""
+    info = DeviceInfo(device_id=device, platform="android", app_version="1.0.0")
+    async with session.begin():
+        user = await session.get(User, user_id)
+        assert user is not None
+        started = await sign_in.start_session(session, user, "otp", info, ip=None, now=now)
+    return started.pair.access_token
 
 
 @pytest.fixture

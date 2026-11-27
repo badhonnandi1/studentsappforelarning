@@ -1,4 +1,4 @@
-"""Shared sign-in: status check, device session (reused per device), tokens, audit, outbox.
+"""Shared sign-in: status and ban checks, device session (reused per device), tokens, audit, outbox.
 
 Every sign-in method ends here, inside the caller's transaction (05 §C.2). Revocations of
 sessions evicted by the per-user cap reach Redis after commit (``after_commit``).
@@ -16,7 +16,7 @@ from app.core.errors import ForbiddenError
 from app.core.ids import uuid7
 from app.core.security.hashing import keyed_hash
 from app.core.settings import get_settings
-from app.modules import ops
+from app.modules import com, ops
 from app.modules.auth.contracts.events import USER_SIGNED_IN, SignInMethod, UserSignedIn
 from app.modules.auth.internal.models import DeviceSession, User
 from app.modules.auth.internal.repositories import sessions as sessions_repo
@@ -87,6 +87,8 @@ async def start_session(
     restricted_until: datetime | None = None,
 ) -> Started:
     check_status(user)
+    if await com.is_banned(session, user.id, now):
+        raise ForbiddenError("This account is banned", code="account_banned")
     ds, evicted = await _device_session(
         session, user, method, device, audience=audience, ip=ip, now=now
     )

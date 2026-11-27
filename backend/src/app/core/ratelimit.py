@@ -63,6 +63,7 @@ TIERS: dict[str, Tier] = {
         Tier("ai", (Rule("user", 10, 60),)),
         Tier("upload", (Rule("user", 30, 3600),)),
         Tier("admin", (Rule("user", 300, 60),)),
+        Tier("report", (Rule("user", 20, 86400),)),
         Tier("webhook", (Rule("provider", 1000, 60),)),
     )
 }

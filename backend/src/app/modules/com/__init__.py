@@ -11,6 +11,11 @@ from typing import Any
 
 from app.modules.com.contracts.moderation import ModerationVerdict, SessionRevoker
 from app.modules.com.internal.services.moderate import ensure_allowed, moderate
+from app.modules.com.internal.services.restrictions import (
+    is_banned,
+    is_restricted,
+    set_session_revoker,
+)
 
 CODE = "COM"
 SCHEMA = "community"
@@ -21,12 +26,15 @@ __all__ = [
     "ModerationVerdict",
     "SessionRevoker",
     "ensure_allowed",
+    "is_banned",
+    "is_restricted",
     "moderate",
     "routers",
+    "set_session_revoker",
 ]
 
 
 def routers() -> list[Any]:
-    from app.modules.com.internal.routes.admin_terms import router as terms_router
+    from app.modules.com.internal.routes import admin_moderation, admin_terms, reports
 
-    return [terms_router]
+    return [reports.router, admin_moderation.router, admin_terms.router]

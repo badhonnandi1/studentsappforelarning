@@ -37,12 +37,16 @@ def routers() -> list[Any]:
 
 
 def startup() -> None:
-    """Register the DB-backed grants loader used by ``can``/``require`` (R-03)."""
+    """Register the DB-backed grants loader used by ``can``/``require`` (R-03), and the session
+    revoker COM uses when it bans a user."""
     from app.core.db import sessionmaker
     from app.core.security.actor import set_grants_loader
+    from app.modules import com
     from app.modules.auth.internal.services.rbac import make_grants_loader
+    from app.modules.auth.internal.services.sessions import BanRevoker
 
     set_grants_loader(make_grants_loader(lambda: sessionmaker()()))
+    com.set_session_revoker(BanRevoker())
 
 
 def job_handlers() -> dict[str, Any]:

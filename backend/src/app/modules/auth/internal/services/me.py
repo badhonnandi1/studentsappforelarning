@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ForbiddenError
 from app.core.security.actor import Actor
 from app.core.security.crypto import decrypt_field
 from app.modules import com
@@ -50,6 +51,8 @@ async def get_me(session: AsyncSession, actor: Actor, now: datetime) -> MeOut:
 async def patch_me(session: AsyncSession, actor: Actor, body: MePatchIn, now: datetime) -> MeOut:
     """A new display name goes through COM moderation first (a block is ``422``)."""
     if body.display_name is not None:
+        if await com.is_restricted(session, actor.user_id, "profile", now):
+            raise ForbiddenError("Your account cannot change its display name", code="restricted")
         await com.ensure_allowed(
             session, body.display_name, "display_name", str(actor.user_id), user_id=actor.user_id
         )
