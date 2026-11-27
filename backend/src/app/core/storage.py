@@ -9,13 +9,14 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Any
 
 import aioboto3
 
 from app.core.errors import ValidationAppError
 from app.core.ids import uuid7
-from app.core.settings import Settings
+from app.core.settings import Settings, get_settings
 
 PRESIGN_TTL_S = 600
 MiB = 1024 * 1024
@@ -129,3 +130,9 @@ class Storage:
                     Bucket=bucket,
                     CreateBucketConfiguration={"LocationConstraint": self.settings.aws_region},
                 )
+
+
+@lru_cache(maxsize=1)
+def get_storage() -> Storage:
+    """FastAPI dependency (tests override it)."""
+    return Storage(get_settings())

@@ -15,7 +15,7 @@ is still pending (00 A.5); the plan's defaults are used.
 | 6 | OPS: `b01_05` audit log, `audited()`, audit search, runtime-config admin | done |
 | 7 | Entry points: api, workers, ai_gateway, exam_ingest, exam_consumers | done |
 | 8 | PLAN SMS: `b01_11`, gateways, templates, `send_sms`, `plan.sms.send` | done |
-| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants | in progress |
+| 9 | AUTH core (in parts): `b01_06`–`b01_10` schema and seeds; OTP sign-in, tokens, sessions, `/v1/me`; RBAC and role grants; profile, reference lists, presign, photo | in progress |
 | 10–13 | Social, staff SSO, COM, seeds, hardening | pending |
 
 ## Deviations
@@ -133,6 +133,40 @@ is still pending (00 A.5); the plan's defaults are used.
   - Revoking an already revoked grant returns `404`.
 - **Super-admin bypass:** recorded as a structured security log event (`rbac_super_admin_bypass`), not as an `audit_log` row. `can()` is a synchronous core check with no transaction. Every write a super admin makes is still audited by the write's own `audited()` row, which carries the actor's roles.
 - **Roles claim after a grant:** a new grant shows in permission checks within 60 s (cache). The `roles` claim in the access token updates on the next refresh.
+
+### Profile, reference lists and uploads (AUTH and NFR, step 9 part 4)
+- **Class level:**
+  - The API accepts 6–12 or `admission`/`job` (stored as 13 and 14).
+  - Classes 9–12 need `science`, `business` or `humanities`. Other classes take no group, or `general`.
+- **Other profile fields:**
+  - `exam_year` runs from the current Dhaka year to that year + 6.
+  - An unknown or inactive institution returns `404`.
+  - An unknown district returns `422`. The upazila must belong to the chosen district.
+  - `board_code` is free text in `^[a-z_]{2,20}$` until the board list exists (B3).
+  - Each 422 carries `details.field`.
+- **Date of birth:** it is always set at sign-up (R-24). On `PUT /v1/me/profile` the same value is accepted, and a different one gets `422 dob_locked` ("contact support").
+- **Institution search:**
+  - Trigram similarity on `name_en` and `name_bn`, plus a substring match, best match first.
+  - Inactive institutions are hidden.
+  - At least one of `q` (≥ 2 characters) and `district_id` is required.
+  - It returns one page of at most 50 results; `next_cursor` is always null, because a similarity order has no stable keyset.
+- **Districts list:** returns `Cache-Control: public, max-age=86400`. Both reference routes are on the `read` tier, keyed by IP.
+- **Presign:**
+  - `GET /v1/uploads/{purpose}/presign` is in `nfr/internal/routes/uploads.py`.
+  - Only `profile_photo` is enabled in B1; other purposes and declared sizes over the limit return `422`.
+  - It uses the `upload` tier per user (30 per hour).
+  - `bytes` is checked against the purpose limit, and the POST policy enforces the limit again at S3.
+- **Photo checks (B1):**
+  - The key must be the caller's own `profile_photo/YYYY/MM/{user_id}/<uuid>.(jpg|png)`.
+  - The object is read from S3 (≤ 2 MiB). Its magic bytes must match the extension, and both dimensions must be 64–4096 px. The size range is our choice; the spec says only "dimension checks".
+  - Otherwise the response is `422 invalid_upload`.
+  - Headers are parsed by `shared/image_header.py` (PNG and JPEG only, no imaging dependency).
+  - A passing photo is stored as `pending` and is not public.
+- **Shared helpers:**
+  - `core.security.deps.user_tier(tier)` is the current actor, rate-limited per user. It replaces the per-module helper.
+  - `core.storage.get_storage()` is a dependency, so tests can override it.
+  - `summary.signed_in_user()` is shared by the `/v1/me*` services.
+- **Moved to step 10:** `POST /v1/me/phone` needs the step-up OTP (R-25), which step 10 builds.
 
 ### SMS (PLAN)
 - **Revision order:** `b01_11_notify_sms` revises `b01_05` and lands before AUTH, because SMS has no identity dependency and AUTH's OTP flow needs it. The AUTH revisions `b01_06`–`b01_10` will chain after `b01_11`, so the order is b01_01..05, b01_11, b01_06..10, b01_12.

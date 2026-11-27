@@ -67,8 +67,9 @@ __all__ = [
 
 def routers() -> list[Any]:
     from app.modules.nfr.internal.routes.config import router
+    from app.modules.nfr.internal.routes.uploads import router as uploads_router
 
-    return [router]
+    return [router, uploads_router]
 
 
 def job_handlers() -> dict[str, JobHandler]:

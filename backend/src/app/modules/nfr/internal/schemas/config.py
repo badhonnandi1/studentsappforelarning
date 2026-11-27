@@ -24,3 +24,11 @@ class ClientConfigOut(BaseModel):
     min_app_version: MinAppVersion
     support: dict[str, str]
     server_time: datetime
+
+
+class PresignOut(BaseModel):
+    upload_url: str
+    fields: dict[str, str] | None
+    key: str
+    expires_at: datetime
+    max_bytes: int

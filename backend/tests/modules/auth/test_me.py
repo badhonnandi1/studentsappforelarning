@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 
 import httpx
 import pytest
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.auth.internal.models import User
 from tests.modules.auth.conftest import auth_header, sign_in, sign_up
 
 pytestmark = [pytest.mark.api, pytest.mark.db]
@@ -55,3 +59,15 @@ async def test_sessions_list_and_revoke(client: httpx.AsyncClient) -> None:
     assert (await client.delete(url, headers=auth_header(phone_a))).status_code == 404
     unknown = f"/v1/me/sessions/{uuid.uuid4()}"
     assert (await client.delete(unknown, headers=auth_header(phone_a))).status_code == 404
+
+
+async def test_suspended_user_must_sign_in_again(
+    client: httpx.AsyncClient, sessions: Callable[[], AsyncSession]
+) -> None:
+    pair = await sign_up(client)
+    async with sessions() as s, s.begin():
+        await s.execute(
+            update(User).where(User.id == pair["user"]["id"]).values(status="suspended")
+        )
+    for path in ("/v1/me", "/v1/me/profile"):
+        assert (await client.get(path, headers=auth_header(pair))).status_code == 401

@@ -16,6 +16,7 @@ from app.core.db import get_session
 from app.core.http import create_app
 from app.core.security import crypto
 from app.core.settings import Settings
+from app.core.storage import Storage, get_storage
 from app.modules import auth
 from app.modules.auth.internal.providers import captcha
 from app.modules.plan.internal import providers
@@ -23,6 +24,7 @@ from app.modules.plan.internal.providers.sms_fake import FakeSmsGateway
 from app.modules.plan.internal.services import templates
 from tests.support.tokens import ensure_keys
 
+UPLOADS = "sp-test-uploads"
 TEST_CODE = "123456"  # TEST_PHONE_OTP in tests/conftest.py
 PHONE = "+8801700000001"  # reserved test block (R-31)
 DEVICE: dict[str, Any] = {"device_id": "device-0001", "platform": "android", "app_version": "1.0.0"}
@@ -45,6 +47,10 @@ def fake_sms() -> Iterator[FakeSmsGateway]:
     templates.clear_cache()
 
 
+def uploads_storage() -> Storage:
+    return Storage(Settings(_env_file=None, s3_bucket_uploads=UPLOADS))
+
+
 @pytest.fixture
 def clock() -> FrozenClock:
     """SMS partitions exist from the current month onward."""
@@ -63,6 +69,7 @@ async def client(
 
     app.dependency_overrides[get_session] = test_session
     app.dependency_overrides[get_clock] = lambda: clock
+    app.dependency_overrides[get_storage] = lambda: uploads_storage()
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

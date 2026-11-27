@@ -7,6 +7,8 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import UnauthorizedError
+from app.core.security.actor import Actor
 from app.modules.auth.internal.models import DeviceSession, Profile, User
 from app.modules.auth.internal.repositories import users as users_repo
 from app.modules.auth.internal.schemas.auth import TokenPair, UserSummary
@@ -14,6 +16,14 @@ from app.modules.auth.internal.services.tokens import Issued
 from app.shared.dhaka_date import age_on, dhaka_today
 
 ADULT_AGE = 18
+
+
+async def signed_in_user(session: AsyncSession, actor: Actor, *, lock: bool = False) -> User:
+    """The caller's user row; a missing, suspended or deleted account must sign in again."""
+    user = await users_repo.get(session, actor.user_id, lock=lock)
+    if user is None or user.status in ("suspended", "deleted"):
+        raise UnauthorizedError("Sign in again")
+    return user
 
 
 def is_minor(user: User, now: datetime) -> bool:

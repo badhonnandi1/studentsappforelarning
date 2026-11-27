@@ -7,7 +7,6 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import UnauthorizedError
 from app.core.security.actor import Actor
 from app.core.security.crypto import decrypt_field
 from app.modules.auth.internal.models import ExternalIdentity, User
@@ -17,13 +16,6 @@ from app.modules.auth.internal.services import summary
 from app.shared.bd_phone import mask_bd_phone
 
 PHONE_CONTEXT = "identity.users.phone"
-
-
-async def _user(session: AsyncSession, actor: Actor, *, lock: bool = False) -> User:
-    user = await users_repo.get(session, actor.user_id, lock=lock)
-    if user is None or user.status in ("suspended", "deleted"):
-        raise UnauthorizedError("Sign in again")
-    return user
 
 
 async def _me(session: AsyncSession, user: User, now: datetime) -> MeOut:
@@ -51,13 +43,13 @@ async def _me(session: AsyncSession, user: User, now: datetime) -> MeOut:
 
 async def get_me(session: AsyncSession, actor: Actor, now: datetime) -> MeOut:
     async with session.begin():
-        return await _me(session, await _user(session, actor), now)
+        return await _me(session, await summary.signed_in_user(session, actor), now)
 
 
 async def patch_me(session: AsyncSession, actor: Actor, body: MePatchIn, now: datetime) -> MeOut:
     """Display-name moderation (COM ``moderate``) is wired in step 11."""
     async with session.begin():
-        user = await _user(session, actor, lock=True)
+        user = await summary.signed_in_user(session, actor, lock=True)
         for name, value in body.model_dump(exclude_unset=True, exclude_none=True).items():
             setattr(user, name, value)
         await session.flush()

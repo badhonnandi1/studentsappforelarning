@@ -14,8 +14,10 @@ def routers() -> list[Any]:
     from app.modules.auth.internal.routes.admin_roles import router as admin_roles_router
     from app.modules.auth.internal.routes.auth import router as auth_router
     from app.modules.auth.internal.routes.me import router as me_router
+    from app.modules.auth.internal.routes.profile import router as profile_router
+    from app.modules.auth.internal.routes.reference import router as reference_router
 
-    return [auth_router, me_router, admin_roles_router]
+    return [auth_router, me_router, profile_router, reference_router, admin_roles_router]
 
 
 def startup() -> None:

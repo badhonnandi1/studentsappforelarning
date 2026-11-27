@@ -1,7 +1,6 @@
 """``/v1/me`` and ``/v1/me/sessions`` (05 §D)."""
 
 import uuid
-from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
@@ -10,9 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.clock import Clock, get_clock
 from app.core.db import get_session
 from app.core.pagination import Page
-from app.core.ratelimit import enforce
 from app.core.security.actor import Actor
-from app.core.security.deps import current_actor
+from app.core.security.deps import user_tier
 from app.modules.auth.internal.schemas.me import MeOut, MePatchIn, SessionOut
 from app.modules.auth.internal.services import me as me_service
 from app.modules.auth.internal.services import sessions as sessions_service
@@ -22,18 +20,8 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 Now = Annotated[Clock, Depends(get_clock)]
 
 
-def tier(name: str) -> Callable[..., Awaitable[Actor]]:
-    """The current actor, rate-limited on ``name`` per user."""
-
-    async def dependency(actor: Annotated[Actor, Depends(current_actor)]) -> Actor:
-        await enforce(name, {"user": str(actor.user_id)})
-        return actor
-
-    return dependency
-
-
-Reader = Annotated[Actor, Depends(tier("read"))]
-Writer = Annotated[Actor, Depends(tier("write"))]
+Reader = Annotated[Actor, Depends(user_tier("read"))]
+Writer = Annotated[Actor, Depends(user_tier("write"))]
 
 
 @router.get("", response_model=MeOut)

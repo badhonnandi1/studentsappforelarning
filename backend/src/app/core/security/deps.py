@@ -66,3 +66,13 @@ def staff_permission(permission: str) -> Callable[..., Awaitable[Actor]]:
         return actor
 
     return dependency
+
+
+def user_tier(tier: str) -> Callable[..., Awaitable[Actor]]:
+    """``Depends(user_tier("write"))``: the current (aud=api) actor, rate-limited per user."""
+
+    async def dependency(actor: Annotated[Actor, Depends(current_actor)]) -> Actor:
+        await enforce(tier, {"user": str(actor.user_id)})
+        return actor
+
+    return dependency
